@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/service/ec2"
-	awscommon "github.com/remijouannet/packer-osc-plugin/builder/osc/common"
 	"github.com/hashicorp/packer/packer"
 	"github.com/mitchellh/multistep"
+	awscommon "github.com/remijouannet/packer-osc-plugin/builder/osc/common"
 )
 
 // StepAttachVolume attaches the previously created volume to an

@@ -5,9 +5,9 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/remijouannet/packer-osc-plugin/builder/osc/common"
 	"github.com/hashicorp/packer/packer"
 	"github.com/mitchellh/multistep"
+	"github.com/remijouannet/packer-osc-plugin/builder/osc/common"
 )
 
 // stepCleanupVolumes cleans up any orphaned volumes that were not designated to

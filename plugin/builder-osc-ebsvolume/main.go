@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/remijouannet/packer/packer-osc-plugins/builder/osc/ebsvolume"
 	"github.com/hashicorp/packer/packer/plugin"
+	"github.com/remijouannet/packer/packer-osc-plugins/builder/osc/ebsvolume"
 )
 
 func main() {

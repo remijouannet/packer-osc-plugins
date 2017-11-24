@@ -10,13 +10,13 @@ import (
 	"log"
 
 	"github.com/aws/aws-sdk-go/service/ec2"
-	awscommon "github.com/remijouannet/packer-osc-plugin/builder/osc/common"
 	"github.com/hashicorp/packer/common"
 	"github.com/hashicorp/packer/helper/communicator"
 	"github.com/hashicorp/packer/helper/config"
 	"github.com/hashicorp/packer/packer"
 	"github.com/hashicorp/packer/template/interpolate"
 	"github.com/mitchellh/multistep"
+	awscommon "github.com/remijouannet/packer-osc-plugin/builder/osc/common"
 )
 
 // The unique ID for this builder
