@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/hashicorp/packer/packer/plugin"
-	"github.com/remijouannet/packer/packer-osc-plugins/builder/osc/ebs"
+	"github.com/remijouannet/packer-osc-plugins/builder/osc/ebs"
 )
 
 func main() {

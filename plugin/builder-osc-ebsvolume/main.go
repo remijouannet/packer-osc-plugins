@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/hashicorp/packer/packer/plugin"
-	"github.com/remijouannet/packer/packer-osc-plugins/builder/osc/ebsvolume"
+	"github.com/remijouannet/packer-osc-plugins/builder/osc/ebsvolume"
 )
 
 func main() {
