@@ -15,7 +15,7 @@ import (
 	"github.com/hashicorp/packer/packer"
 	"github.com/hashicorp/packer/template/interpolate"
 	"github.com/mitchellh/multistep"
-	awscommon "github.com/remijouannet/packer-osc-plugin/builder/osc/common"
+	awscommon "github.com/remijouannet/packer-osc-plugins/builder/osc/common"
 )
 
 // The unique ID for this builder

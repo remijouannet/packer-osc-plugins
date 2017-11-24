@@ -2,7 +2,7 @@ package ebsvolume
 
 import (
 	"github.com/hashicorp/packer/template/interpolate"
-	awscommon "github.com/remijouannet/packer-osc-plugin/builder/osc/common"
+	awscommon "github.com/remijouannet/packer-osc-plugins/builder/osc/common"
 )
 
 type BlockDevice struct {
