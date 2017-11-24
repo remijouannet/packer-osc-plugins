@@ -1,7 +1,7 @@
 package ebsvolume
 
 import (
-	awscommon "github.com/hashicorp/packer/builder/amazon/common"
+	awscommon "github.com/remijouannet/packer-osc-plugin/builder/osc/common"
 	"github.com/hashicorp/packer/template/interpolate"
 )
 
