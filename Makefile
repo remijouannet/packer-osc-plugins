@@ -29,17 +29,17 @@ pkg: fmt
 	echo "==> Building..."
 	CGO_ENABLED=0 gox -os=$(XC_OS) -arch=$(XC_ARCH) \
 				-osarch=$(XC_EXCLUDE_OSARCH) \
-				-output ./pkg/packer-osc-{{ .Dir }}_{{.OS}}_{{.Arch}}_$(VERSION)
+				-output ./pkg/packer-osc-{{.Dir}}_{{.OS}}_{{.Arch}}_$(VERSION)
 
 bin: fmt
 	mkdir -p ./bin
 	echo "==> Building..."
-	CGO_ENABLED=0 gox -os=$(GOOS) -arch=$(GOARCH) -output ./bin/packer-osc-{{ .Dir }}_{{.OS}}_{{.Arch}}_$(VERSION) .
+	CGO_ENABLED=0 gox -os=$(GOOS) -arch=$(GOARCH) -output ./bin/packer-osc-{{.Dir}}_{{.OS}}_{{.Arch}}_$(VERSION) .
 
 bin-darwin: fmt
 	mkdir -p ./bin
 	echo "==> Building..."
-	CGO_ENABLED=0 gox -os=darwin -arch=amd64 -output ./bin/packer-osc-{{ .Dir }}_{{.OS}}_{{.Arch}}_$(VERSION) .
+	CGO_ENABLED=0 gox -os=darwin -arch=amd64 -output ./bin/packer-osc-{{.Dir}}_{{.OS}}_{{.Arch}}_$(VERSION) .
 
 vet:
 	@echo "go vet ."
