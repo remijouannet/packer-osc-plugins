@@ -1,5 +1,6 @@
 TEST?=$$(go list ./... |grep -v 'vendor')
 GOFMT_FILES?=$$(find . -name '*.go' |grep -v vendor)
+GOPLUGIN_FILES?=$$(find $$(pwd)/plugin/ -mindepth 1 -type d)
 XC_ARCH="386 amd64 arm arm64 ppc64le"
 XC_OS="linux darwin windows freebsd openbsd solaris"
 XC_EXCLUDE_OSARCH="!darwin/arm !darwin/386"
@@ -10,10 +11,7 @@ COMMIT=$$(git rev-parse HEAD)
 GOOS=$$(go env GOOS)
 GOARCH=$$(go env GOARCH)
 
-default: build
-
-build: fmt
-	go install
+default: bin
 
 test: fmtcheck
 	go test -i $(TEST) || exit 1
@@ -27,19 +25,27 @@ pkg: fmt
 	mkdir -p ./pkg
 	rm -rf ./pkg/*
 	echo "==> Building..."
-	CGO_ENABLED=0 gox -os=$(XC_OS) -arch=$(XC_ARCH) \
-				-osarch=$(XC_EXCLUDE_OSARCH) \
-				-output ./pkg/packer-osc-{{.Dir}}_{{.OS}}_{{.Arch}}_$(VERSION)
+	for i in $(GOPLUGIN_FILES); do \
+		cd $$i ; \
+		CGO_ENABLED=0 gox -os=$(XC_OS) -arch=$(XC_ARCH) -osarch=$(XC_EXCLUDE_OSARCH) \
+			-output ../../pkg/packer-osc-{{.Dir}}_{{.OS}}_{{.Arch}}_$(VERSION)/packer-osc-{{.Dir}} . ; \ 
+	done
 
 bin: fmt
 	mkdir -p ./bin
 	echo "==> Building..."
-	CGO_ENABLED=0 gox -os=$(GOOS) -arch=$(GOARCH) -output ./bin/packer-osc-{{.Dir}}_{{.OS}}_{{.Arch}}_$(VERSION) .
+	for i in $(GOPLUGIN_FILES); do \
+		cd $$i ; \
+		CGO_ENABLED=0 gox -os=$(GOOS) -arch=$(GOARCH) -output ../../bin/packer-osc-{{.Dir}} . ; \
+	done
 
 bin-darwin: fmt
 	mkdir -p ./bin
 	echo "==> Building..."
-	CGO_ENABLED=0 gox -os=darwin -arch=amd64 -output ./bin/packer-osc-{{.Dir}}_{{.OS}}_{{.Arch}}_$(VERSION) .
+	for i in $(GOPLUGIN_FILES); do \
+		cd $$i ; \
+		CGO_ENABLED=0 gox -os=darwin -arch=amd64 -output ../../bin/packer-osc-{{.Dir}} . ; \
+	done
 
 vet:
 	@echo "go vet ."
