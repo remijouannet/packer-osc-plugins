@@ -67,6 +67,10 @@ test-compile:
 release:
 	bash scripts/github-releases.sh
 
+install:
+	mkdir -p ~/.packer.d/plugins
+	cp -f bin/packer-* ~/.packer.d/plugins/
+
 docker-bin: docker-image
 	docker run  \
 		-v $(PWD)/bin:/go/src/github.com/remijouannet/packer-osc-plugin/bin \
