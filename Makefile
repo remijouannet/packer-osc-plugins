@@ -1,7 +1,7 @@
 TEST?=$$(go list ./... |grep -v 'vendor')
 GOFMT_FILES?=$$(find . -name '*.go' |grep -v vendor)
 GOPLUGIN_FILES?=$$(find $$(pwd)/plugin/ -mindepth 1 -type d)
-XC_ARCH="386 amd64 arm arm64 ppc64le"
+XC_ARCH="386 amd64 arm"
 XC_OS="linux darwin windows freebsd openbsd solaris"
 XC_EXCLUDE_OSARCH="!darwin/arm !darwin/386"
 VERSION=$$(git describe --abbrev=0 --tags)
@@ -28,7 +28,7 @@ pkg: fmt
 	for i in $(GOPLUGIN_FILES); do \
 		cd $$i ; \
 		CGO_ENABLED=0 gox -os=$(XC_OS) -arch=$(XC_ARCH) -osarch=$(XC_EXCLUDE_OSARCH) \
-			-output ../../pkg/packer-osc-{{.Dir}}_{{.OS}}_{{.Arch}}_$(VERSION)/packer-osc-{{.Dir}} . ; \ 
+		-output ../../pkg/packer-osc-{{.OS}}_{{.Arch}}_$(VERSION)/packer-{{.Dir}} . ; \
 	done
 
 bin: fmt
@@ -36,15 +36,15 @@ bin: fmt
 	echo "==> Building..."
 	for i in $(GOPLUGIN_FILES); do \
 		cd $$i ; \
-		CGO_ENABLED=0 gox -os=$(GOOS) -arch=$(GOARCH) -output ../../bin/packer-osc-{{.Dir}} . ; \
+		CGO_ENABLED=0 gox -os=$(GOOS) -arch=$(GOARCH) -output ../../bin/packer-{{.Dir}} . ; \
 	done
 
 bin-darwin: fmt
 	mkdir -p ./bin
 	echo "==> Building..."
 	for i in $(GOPLUGIN_FILES); do \
-		cd $$i ; \
-		CGO_ENABLED=0 gox -os=darwin -arch=amd64 -output ../../bin/packer-osc-{{.Dir}} . ; \
+		cd $$i; \
+		CGO_ENABLED=0 gox -os=darwin -arch=amd64 -output ../../bin/packer-{{.Dir}} . ; \
 	done
 
 vet:
@@ -79,26 +79,26 @@ install:
 
 docker-bin: docker-image
 	docker run  \
-		-v $(PWD)/bin:/go/src/github.com/remijouannet/packer-osc-plugin/bin \
-		packer-osc-plugin:$(VERSION) bin
+		-v $(PWD)/bin:/go/src/github.com/remijouannet/packer-osc-plugins/bin \
+		packer-osc-plugins:$(VERSION) bin
 
 docker-bin-darwin: docker-image
 	docker run  \
-		-v $(PWD)/bin:/go/src/github.com/remijouannet/packer-osc-plugin/bin \
-		packer-osc-plugin:$(VERSION) bin-darwin
+		-v $(PWD)/bin:/go/src/github.com/remijouannet/packer-osc-plugins/bin \
+		packer-osc-plugins:$(VERSION) bin-darwin
 
 docker-image:
-	docker build -t packer-osc-plugin:$(VERSION) .
+	docker build -t packer-osc-plugins:$(VERSION) .
 
 docker-build:
 	docker run \
-		-v $(PWD)/pkg:/go/src/github.com/remijouannet/packer-osc-plugin/pkg \
-		packer-osc-plugin:$(VERSION) pkg
+		-v $(PWD)/pkg:/go/src/github.com/remijouannet/packer-osc-plugins/pkg \
+		packer-osc-plugins:$(VERSION) pkg
 
 docker-release:
 	docker run \
-		-v $(PWD)/pkg:/go/src/github.com/remijouannet/packer-osc-plugin/pkg \
+		-v $(PWD)/pkg:/go/src/github.com/remijouannet/packer-osc-plugins/pkg \
 		-e "GITHUB_TOKEN=$(GITHUB_TOKEN)" \
-		packer-osc-plugin:$(VERSION) release 
+		packer-osc-plugins:$(VERSION) release 
 
 .PHONY: build test testacc vet fmt fmtcheck errcheck vendor-status test-compile

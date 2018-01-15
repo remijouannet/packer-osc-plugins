@@ -8,7 +8,7 @@ RUN go get -u github.com/kardianos/govendor
 RUN go get -u github.com/mitchellh/gox
 RUN go get -u github.com/aktau/github-release
 
-WORKDIR /go/src/github.com/remijouannet/packer-osc-plugin
-COPY ./ /go/src/github.com/remijouannet/packer-osc-plugin
+WORKDIR /go/src/github.com/remijouannet/packer-osc-plugins
+COPY ./ /go/src/github.com/remijouannet/packer-osc-plugins
 
 ENTRYPOINT ["make"]
