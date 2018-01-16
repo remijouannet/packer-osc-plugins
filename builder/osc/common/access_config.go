@@ -16,14 +16,14 @@ import (
 
 // AccessConfig is for common configuration related to AWS access
 type AccessConfig struct {
-	AccessKey         string `mapstructure:"access_key"`
-	CustomEndpointEc2 string `mapstructure:"custom_endpoint_ec2"`
-	MFACode           string `mapstructure:"mfa_code"`
-	ProfileName       string `mapstructure:"profile"`
-	RawRegion         string `mapstructure:"region"`
-	SecretKey         string `mapstructure:"secret_key"`
-	SkipValidation    bool   `mapstructure:"skip_region_validation"`
-	Token             string `mapstructure:"token"`
+	AccessKey         string            `mapstructure:"access_key"`
+	Endpoints         map[string]string `mapstructure:"endpoints"`
+	MFACode           string            `mapstructure:"mfa_code"`
+	ProfileName       string            `mapstructure:"profile"`
+	RawRegion         string            `mapstructure:"region"`
+	SecretKey         string            `mapstructure:"secret_key"`
+	SkipValidation    bool              `mapstructure:"skip_region_validation"`
+	Token             string            `mapstructure:"token"`
 	session           *session.Session
 }
 
@@ -46,8 +46,8 @@ func (c *AccessConfig) Session() (*session.Session, error) {
 		config = config.WithRegion(region)
 	}
 
-	if c.CustomEndpointEc2 != "" {
-		config = config.WithEndpoint(c.CustomEndpointEc2)
+	if c.Endpoints["ec2"] != "" {
+		config = config.WithEndpoint(*aws.String(c.Endpoints["ec2"]))
 	}
 
 	if c.AccessKey != "" {

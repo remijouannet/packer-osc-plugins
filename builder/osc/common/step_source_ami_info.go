@@ -52,6 +52,32 @@ func mostRecentAmi(images []*ec2.Image) *ec2.Image {
 	return sortedImages[len(sortedImages)-1]
 }
 
+func mostRecentAmiByTags(images []*ec2.Image, tag string) *ec2.Image {
+	var recentImage *ec2.Image
+    var itime time.Time
+    var jtime time.Time
+    for i := range images {
+        for k, v := range i.Tags {
+            if k == tag {
+                jtime, _ := time.Parse(time.RFC3339, v)
+                if _ != nil {
+                    log.Printf("[WARN] failed to parse time for : %s", i.Id)
+                } else if itime == nil || itime.Unix() < jtime.Unix() {
+                    itime = jtime
+                    recentImage = &i
+                }
+            }
+        }
+    }
+
+    if len(sortedImages) != 0 {
+        return recentImage
+    } else {
+        log.Println("[WARN] no image was found with the a valid time tag")
+        return images[len(images)-1]
+    }
+}
+
 func (s *StepSourceAMIInfo) Run(state multistep.StateBag) multistep.StepAction {
 	ec2conn := state.Get("ec2").(*ec2.EC2)
 	ui := state.Get("ui").(packer.Ui)
@@ -86,19 +112,14 @@ func (s *StepSourceAMIInfo) Run(state multistep.StateBag) multistep.StepAction {
 		return multistep.ActionHalt
 	}
 
-	if len(imageResp.Images) > 1 && !s.AmiFilters.MostRecent {
-		err := fmt.Errorf("Your query returned more than one result. Please try a more specific search, or set most_recent to true.")
-		state.Put("error", err)
-		ui.Error(err.Error())
-		return multistep.ActionHalt
-	}
-
 	var image *ec2.Image
-	if s.AmiFilters.MostRecent {
+	if s.AmiFilters.MostRecent && s.AmiFilters.TagDate == ""{
 		image = mostRecentAmi(imageResp.Images)
+	} else if s.AmiFilters.MostRecent && s.AmiFilters.TagDate != "" {
+		image = mostRecentAmiByTags(imageResp.Images, s.AmiFilters.TagDate)
 	} else {
 		image = imageResp.Images[0]
-	}
+    }
 
 	ui.Message(fmt.Sprintf("Found Image ID: %s", *image.ImageId))
 

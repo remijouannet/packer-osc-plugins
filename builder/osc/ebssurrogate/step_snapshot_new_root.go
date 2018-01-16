@@ -52,7 +52,7 @@ func (s *StepSnapshotNewRootVolume) Run(state multistep.StateBag) multistep.Step
 
 	// Wait for the snapshot to be ready
 	stateChange := awscommon.StateChangeConf{
-		Pending:   []string{"pending"},
+		Pending:   []string{"pending", "in-queue"},
 		StepState: state,
 		Target:    "completed",
 		Refresh: func() (interface{}, string, error) {

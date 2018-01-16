@@ -18,7 +18,8 @@ var reShutdownBehavior = regexp.MustCompile("^(stop|terminate)$")
 type AmiFilterOptions struct {
 	Filters    map[*string]*string
 	Owners     []*string
-	MostRecent bool `mapstructure:"most_recent"`
+	MostRecent bool                 `mapstructure:"most_recent"`
+    TagDate    string               `mapstructure:"tag_date"`
 }
 
 func (d *AmiFilterOptions) Empty() bool {
