@@ -55,22 +55,21 @@ func mostRecentAmi(images []*ec2.Image) *ec2.Image {
 func mostRecentAmiByTags(images []*ec2.Image, tag string) *ec2.Image {
 	var recentImage *ec2.Image
     var itime time.Time
-    var jtime time.Time
-    for i := range images {
-        for k, v := range i.Tags {
-            if k == tag {
-                jtime, _ := time.Parse(time.RFC3339, v)
-                if _ != nil {
-                    log.Printf("[WARN] failed to parse time for : %s", i.Id)
-                } else if itime == nil || itime.Unix() < jtime.Unix() {
+    for _, i := range images {
+        for _,  a := range i.Tags {
+            if *a.Key == tag {
+                jtime, err := time.Parse(time.RFC3339, *a.Value)
+                if err != nil {
+                    log.Printf("[WARN] failed to parse time for : %s", *i.ImageId)
+                } else if itime.IsZero() || itime.Unix() < jtime.Unix() {
                     itime = jtime
-                    recentImage = &i
+                    recentImage = i
                 }
             }
         }
     }
 
-    if len(sortedImages) != 0 {
+    if recentImage != nil {
         return recentImage
     } else {
         log.Println("[WARN] no image was found with the a valid time tag")
