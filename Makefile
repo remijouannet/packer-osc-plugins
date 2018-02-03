@@ -79,12 +79,12 @@ install:
 
 docker-bin: docker-image
 	docker run  \
-		-v $(PWD)/bin:/go/src/github.com/remijouannet/packer-osc-plugins/bin \
+		-t -v $(PWD)/bin:/go/src/github.com/remijouannet/packer-osc-plugins/bin \
 		packer-osc-plugins:$(VERSION) bin
 
 docker-bin-darwin: docker-image
 	docker run  \
-		-v $(PWD)/bin:/go/src/github.com/remijouannet/packer-osc-plugins/bin \
+		-t -v $(PWD)/bin:/go/src/github.com/remijouannet/packer-osc-plugins/bin \
 		packer-osc-plugins:$(VERSION) bin-darwin
 
 docker-image:
