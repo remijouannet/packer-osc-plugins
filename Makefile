@@ -27,7 +27,7 @@ pkg: fmt
 	echo "==> Building..."
 	for i in $(GOPLUGIN_FILES); do \
 		cd $$i ; \
-		CGO_ENABLED=0 gox -os=$(XC_OS) -arch=$(XC_ARCH) -osarch=$(XC_EXCLUDE_OSARCH) \
+		CGO_ENABLED=0 gox -parallel=2 -os=$(XC_OS) -arch=$(XC_ARCH) -osarch=$(XC_EXCLUDE_OSARCH) \
 		-output ../../pkg/packer-osc-{{.OS}}_{{.Arch}}_$(VERSION)/packer-{{.Dir}} . ; \
 	done
 
