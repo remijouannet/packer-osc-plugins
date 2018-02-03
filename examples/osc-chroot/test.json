@@ -1,47 +1,36 @@
 {
   "description": "AMI Builder for CentOS 7",
   "variables": {"os_name": "centos7"},
-  "provisioners": [
-      {
-          "type": "shell",
-          "scripts": ["scripts/00-qcow2.sh"]
-      }
-  ],
+  "provisioners": [],
   "builders": [
     {
-        "type" : "amazon-ebssurrogate",
+        "type" : "osc-chroot",
         "region": "eu-west-2",
-        "profile": "hathaway-euw2",
-        "ssh_username" : "root",
-        "instance_type" : "t2.micro",
-        "source_ami": "ami-d4f6551d",
-        "skip_region_validation": true,
-        "custom_endpoint_ec2": "fcu.eu-west-2.outscale.com",
+        "profile": "osc-test",
         "ami_name": "{{user `os_name`}}-{{isotime \"2006-01-02-030405\" | clean_ami_name}}",
-        "shutdown_behavior": "terminate",
+        "ami_description": "test",
+        "source_ami_filter": {
+            "filters": {"name": "centos7-*"},
+            "owners": ["763630846467"],
+            "most_recent": false
+        },
+        "skip_region_validation": true,
+        "endpoints": {
+            "ec2" : "fcu.eu-west-2.outscale.com"
+        },
         "ami_virtualization_type": "hvm",
-        "availability_zone":"eu-west-2a",
-        "launch_block_device_mappings" : [
+        "chroot_mounts": [
+            ["proc", "proc", "/proc"],
+            ["bind", "/dev", "/dev"]
+        ],
+        "ami_block_device_mappings" : [
             {
                 "volume_type" : "standard",
                 "device_name" : "/dev/xvdf",
                 "delete_on_termination" : true,
                 "volume_size" : 8
-            },
-            {
-                "volume_type" : "standard",
-                "device_name" : "/dev/xvdb",
-                "delete_on_termination" : true,
-                "volume_size" : 40
             }
-        ],
-        "ami_root_device": {
-            "delete_on_termination": true,
-            "source_device_name": "/dev/xvdf",
-            "device_name": "/dev/xvda",
-            "volume_size": "8",
-            "volume_type": "standard"
-        }
+        ]
     }
   ]
 }
