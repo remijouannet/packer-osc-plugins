@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/hashicorp/packer/packer"
 	"github.com/hashicorp/packer/template/interpolate"
@@ -150,24 +149,12 @@ func (s *StepModifyAMIAttributes) Run(state multistep.StateBag) multistep.StepAc
 	}
 
 	// Modifying image attributes
-	for region, ami := range amis {
+	for _, ami := range amis {
 		ui.Say(fmt.Sprintf("Modifying attributes on AMI (%s)...", ami))
-		awsConfig := aws.Config{
-			Credentials: ec2conn.Config.Credentials,
-			Region:      aws.String(region),
-		}
-		session, err := session.NewSession(&awsConfig)
-		if err != nil {
-			err := fmt.Errorf("Error creating AWS session: %s", err)
-			state.Put("error", err)
-			ui.Error(err.Error())
-			return multistep.ActionHalt
-		}
-		regionconn := ec2.New(session)
-		for name, input := range options {
+        for name, input := range options {
 			ui.Message(fmt.Sprintf("Modifying: %s", name))
 			input.ImageId = &ami
-			_, err := regionconn.ModifyImageAttribute(input)
+			_, err := ec2conn.ModifyImageAttribute(input)
 			if err != nil {
 				err := fmt.Errorf("Error modify AMI attributes: %s", err)
 				state.Put("error", err)
@@ -178,19 +165,13 @@ func (s *StepModifyAMIAttributes) Run(state multistep.StateBag) multistep.StepAc
 	}
 
 	// Modifying snapshot attributes
-	for region, region_snapshots := range snapshots {
+	for _, region_snapshots := range snapshots {
 		for _, snapshot := range region_snapshots {
 			ui.Say(fmt.Sprintf("Modifying attributes on snapshot (%s)...", snapshot))
-			awsConfig := aws.Config{
-				Credentials: ec2conn.Config.Credentials,
-				Region:      aws.String(region),
-			}
-			session := session.New(&awsConfig)
-			regionconn := ec2.New(session)
-			for name, input := range snapshotOptions {
+            for name, input := range snapshotOptions {
 				ui.Message(fmt.Sprintf("Modifying: %s", name))
 				input.SnapshotId = &snapshot
-				_, err := regionconn.ModifySnapshotAttribute(input)
+				_, err := ec2conn.ModifySnapshotAttribute(input)
 				if err != nil {
 					err := fmt.Errorf("Error modify snapshot attributes: %s", err)
 					state.Put("error", err)
