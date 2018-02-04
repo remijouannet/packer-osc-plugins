@@ -15,3 +15,4 @@
 
 pkg/
 bin/
+examples/*/crash.log
