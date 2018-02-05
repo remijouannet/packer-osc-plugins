@@ -15,7 +15,7 @@ Download the binary and put it in the same folder than terraform binary
 ```
 $ wget https://github.com/remijouannet/packer-osc-plugins/releases/download/v0.1/packer-osc-linux_amd64_v0.1.zip
 $ unzip packer-osc-linux_amd64_v0.1.zip
-$ mkdir ~/.packer.d/plugins/ && mv packer-osc-linux_amd64_v0.1/* ~/.terraform.d/plugins/
+$ mkdir ~/.packer.d/plugins/ && mv packer-osc-linux_amd64_v0.1/* ~/.packer.d/plugins/
 $ chmod +x ~/.packer.d/plugins/*
 ```
 
