@@ -2,12 +2,11 @@ package ovf
 
 import (
 	"fmt"
-	"net/url"
-	"os"
 	"strings"
 
 	vboxcommon "github.com/hashicorp/packer/builder/virtualbox/common"
 	"github.com/hashicorp/packer/common"
+	"github.com/hashicorp/packer/common/bootcommand"
 	"github.com/hashicorp/packer/helper/config"
 	"github.com/hashicorp/packer/packer"
 	"github.com/hashicorp/packer/template/interpolate"
@@ -18,6 +17,7 @@ type Config struct {
 	common.PackerConfig             `mapstructure:",squash"`
 	common.HTTPConfig               `mapstructure:",squash"`
 	common.FloppyConfig             `mapstructure:",squash"`
+	bootcommand.BootConfig          `mapstructure:",squash"`
 	vboxcommon.ExportConfig         `mapstructure:",squash"`
 	vboxcommon.ExportOpts           `mapstructure:",squash"`
 	vboxcommon.OutputConfig         `mapstructure:",squash"`
@@ -28,7 +28,6 @@ type Config struct {
 	vboxcommon.VBoxManagePostConfig `mapstructure:",squash"`
 	vboxcommon.VBoxVersionConfig    `mapstructure:",squash"`
 
-	BootCommand          []string `mapstructure:"boot_command"`
 	Checksum             string   `mapstructure:"checksum"`
 	ChecksumType         string   `mapstructure:"checksum_type"`
 	GuestAdditionsMode   string   `mapstructure:"guest_additions_mode"`
@@ -92,6 +91,7 @@ func NewConfig(raws ...interface{}) (*Config, []string, error) {
 	errs = packer.MultiErrorAppend(errs, c.VBoxManageConfig.Prepare(&c.ctx)...)
 	errs = packer.MultiErrorAppend(errs, c.VBoxManagePostConfig.Prepare(&c.ctx)...)
 	errs = packer.MultiErrorAppend(errs, c.VBoxVersionConfig.Prepare(&c.ctx)...)
+	errs = packer.MultiErrorAppend(errs, c.BootConfig.Prepare(&c.ctx)...)
 
 	c.ChecksumType = strings.ToLower(c.ChecksumType)
 	c.Checksum = strings.ToLower(c.Checksum)
@@ -99,18 +99,16 @@ func NewConfig(raws ...interface{}) (*Config, []string, error) {
 	if c.SourcePath == "" {
 		errs = packer.MultiErrorAppend(errs, fmt.Errorf("source_path is required"))
 	} else {
-		c.SourcePath, err = common.DownloadableURL(c.SourcePath)
+		c.SourcePath, err = common.ValidatedURL(c.SourcePath)
 		if err != nil {
 			errs = packer.MultiErrorAppend(errs, fmt.Errorf("source_path is invalid: %s", err))
 		}
-		// file must exist now.
-		fileURL, _ := url.Parse(c.SourcePath)
-		if fileURL.Scheme == "file" {
-			if _, err := os.Stat(fileURL.Path); err != nil {
-				errs = packer.MultiErrorAppend(errs,
-					fmt.Errorf("source file needs to exist at time of config validation: %s", err))
-			}
+		fileOK := common.FileExistsLocally(c.SourcePath)
+		if !fileOK {
+			packer.MultiErrorAppend(errs,
+				fmt.Errorf("Source file '%s' needs to exist at time of config validation!", c.SourcePath))
 		}
+
 	}
 
 	validMode := false

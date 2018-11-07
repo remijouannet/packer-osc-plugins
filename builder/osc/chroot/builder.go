@@ -12,14 +12,14 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/hashicorp/packer/common"
 	"github.com/hashicorp/packer/helper/config"
+	"github.com/hashicorp/packer/helper/multistep"
 	"github.com/hashicorp/packer/packer"
 	"github.com/hashicorp/packer/template/interpolate"
-	"github.com/mitchellh/multistep"
 	awscommon "github.com/remijouannet/packer-osc-plugins/builder/osc/common"
 )
 
 // The unique ID for this builder
-const BuilderId = "mitchellh.amazon.chroot"
+const BuilderId = "hashicorp/packer/helper.amazon.chroot"
 
 // Config is the configuration that is chained through the steps and
 // settable from the template.
@@ -173,7 +173,7 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, error) {
 		return warns, errs
 	}
 
-	log.Println(common.ScrubConfig(b.config, b.config.AccessKey, b.config.SecretKey))
+	packer.LogSecretFilter.Set(b.config.AccessKey, b.config.SecretKey, b.config.Token)
 	return warns, nil
 }
 

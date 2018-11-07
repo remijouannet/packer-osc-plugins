@@ -1,15 +1,16 @@
 package common
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	retry "github.com/hashicorp/packer/common"
+	"github.com/hashicorp/packer/helper/multistep"
 	"github.com/hashicorp/packer/packer"
 	"github.com/hashicorp/packer/template/interpolate"
-	"github.com/mitchellh/multistep"
 )
 
 type StepCreateTags struct {
@@ -18,7 +19,7 @@ type StepCreateTags struct {
 	Ctx          interpolate.Context
 }
 
-func (s *StepCreateTags) Run(state multistep.StateBag) multistep.StepAction {
+func (s *StepCreateTags) Run(_ context.Context, state multistep.StateBag) multistep.StepAction {
 	ec2conn := state.Get("ec2").(*ec2.EC2)
 	ui := state.Get("ui").(packer.Ui)
 	amis := state.Get("amis").(map[string]string)

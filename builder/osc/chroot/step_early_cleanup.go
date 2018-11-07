@@ -1,9 +1,10 @@
 package chroot
 
 import (
+	"context"
 	"fmt"
+	"github.com/hashicorp/packer/helper/multistep"
 	"github.com/hashicorp/packer/packer"
-	"github.com/mitchellh/multistep"
 	"log"
 )
 
@@ -11,7 +12,7 @@ import (
 // prepare for snapshotting and creating an AMI.
 type StepEarlyCleanup struct{}
 
-func (s *StepEarlyCleanup) Run(state multistep.StateBag) multistep.StepAction {
+func (s *StepEarlyCleanup) Run(_ context.Context, state multistep.StateBag) multistep.StepAction {
 	ui := state.Get("ui").(packer.Ui)
 	cleanupKeys := []string{
 		"copy_files_cleanup",

@@ -1,14 +1,15 @@
 package common
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"sort"
 	"time"
 
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/hashicorp/packer/helper/multistep"
 	"github.com/hashicorp/packer/packer"
-	"github.com/mitchellh/multistep"
 )
 
 // StepSourceAMIInfo extracts critical information from the source AMI
@@ -54,30 +55,30 @@ func mostRecentAmi(images []*ec2.Image) *ec2.Image {
 
 func mostRecentAmiByTags(images []*ec2.Image, tag string) *ec2.Image {
 	var recentImage *ec2.Image
-    var itime time.Time
-    for _, i := range images {
-        for _,  a := range i.Tags {
-            if *a.Key == tag {
-                jtime, err := time.Parse(time.RFC3339, *a.Value)
-                if err != nil {
-                    log.Printf("[WARN] failed to parse time for : %s", *i.ImageId)
-                } else if itime.IsZero() || itime.Unix() < jtime.Unix() {
-                    itime = jtime
-                    recentImage = i
-                }
-            }
-        }
-    }
+	var itime time.Time
+	for _, i := range images {
+		for _, a := range i.Tags {
+			if *a.Key == tag {
+				jtime, err := time.Parse(time.RFC3339, *a.Value)
+				if err != nil {
+					log.Printf("[WARN] failed to parse time for : %s", *i.ImageId)
+				} else if itime.IsZero() || itime.Unix() < jtime.Unix() {
+					itime = jtime
+					recentImage = i
+				}
+			}
+		}
+	}
 
-    if recentImage != nil {
-        return recentImage
-    } else {
-        log.Println("[WARN] no image was found with the a valid time tag")
-        return images[len(images)-1]
-    }
+	if recentImage != nil {
+		return recentImage
+	} else {
+		log.Println("[WARN] no image was found with the a valid time tag")
+		return images[len(images)-1]
+	}
 }
 
-func (s *StepSourceAMIInfo) Run(state multistep.StateBag) multistep.StepAction {
+func (s *StepSourceAMIInfo) Run(_ context.Context, state multistep.StateBag) multistep.StepAction {
 	ec2conn := state.Get("ec2").(*ec2.EC2)
 	ui := state.Get("ui").(packer.Ui)
 
@@ -112,13 +113,13 @@ func (s *StepSourceAMIInfo) Run(state multistep.StateBag) multistep.StepAction {
 	}
 
 	var image *ec2.Image
-	if s.AmiFilters.MostRecent && s.AmiFilters.TagDate == ""{
+	if s.AmiFilters.MostRecent && s.AmiFilters.TagDate == "" {
 		image = mostRecentAmi(imageResp.Images)
 	} else if s.AmiFilters.MostRecent && s.AmiFilters.TagDate != "" {
 		image = mostRecentAmiByTags(imageResp.Images, s.AmiFilters.TagDate)
 	} else {
 		image = imageResp.Images[0]
-    }
+	}
 
 	ui.Message(fmt.Sprintf("Found Image ID: %s", *image.ImageId))
 

@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"log"
 
-	client "github.com/hashicorp/packer/builder/oracle/oci/client"
+	ocommon "github.com/hashicorp/packer/builder/oracle/common"
 	"github.com/hashicorp/packer/common"
 	"github.com/hashicorp/packer/helper/communicator"
+	"github.com/hashicorp/packer/helper/multistep"
 	"github.com/hashicorp/packer/packer"
-	"github.com/mitchellh/multistep"
+	"github.com/oracle/oci-go-sdk/core"
 )
 
 // BuilderId uniquely identifies the builder
@@ -50,21 +51,27 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 
 	// Build the steps
 	steps := []multistep.Step{
-		&stepKeyPair{
-			Debug:          b.config.PackerDebug,
-			DebugKeyPath:   fmt.Sprintf("oci_%s.pem", b.config.PackerBuildName),
-			PrivateKeyFile: b.config.Comm.SSHPrivateKey,
+		&ocommon.StepKeyPair{
+			Debug:        b.config.PackerDebug,
+			Comm:         &b.config.Comm,
+			DebugKeyPath: fmt.Sprintf("oci_%s.pem", b.config.PackerBuildName),
 		},
 		&stepCreateInstance{},
 		&stepInstanceInfo{},
+		&stepGetDefaultCredentials{
+			Debug:     b.config.PackerDebug,
+			Comm:      &b.config.Comm,
+			BuildName: b.config.PackerBuildName,
+		},
 		&communicator.StepConnect{
-			Config: &b.config.Comm,
-			Host:   commHost,
-			SSHConfig: SSHConfig(
-				b.config.Comm.SSHUsername,
-				b.config.Comm.SSHPassword),
+			Config:    &b.config.Comm,
+			Host:      ocommon.CommHost,
+			SSHConfig: b.config.Comm.SSHConfigFunc(),
 		},
 		&common.StepProvision{},
+		&common.StepCleanupTempKeys{
+			Comm: &b.config.Comm,
+		},
 		&stepImage{},
 	}
 
@@ -77,10 +84,15 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 		return nil, rawErr.(error)
 	}
 
+	region, err := b.config.ConfigProvider.Region()
+	if err != nil {
+		return nil, err
+	}
+
 	// Build the artifact and return it
 	artifact := &Artifact{
-		Image:  state.Get("image").(client.Image),
-		Region: b.config.AccessCfg.Region,
+		Image:  state.Get("image").(core.Image),
+		Region: region,
 		driver: driver,
 	}
 

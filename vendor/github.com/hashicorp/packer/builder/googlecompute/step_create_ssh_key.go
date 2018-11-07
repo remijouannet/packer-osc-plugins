@@ -1,6 +1,7 @@
 package googlecompute
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -9,35 +10,34 @@ import (
 	"io/ioutil"
 	"os"
 
+	"github.com/hashicorp/packer/helper/multistep"
 	"github.com/hashicorp/packer/packer"
-	"github.com/mitchellh/multistep"
 	"golang.org/x/crypto/ssh"
 )
 
 // StepCreateSSHKey represents a Packer build step that generates SSH key pairs.
 type StepCreateSSHKey struct {
-	Debug          bool
-	DebugKeyPath   string
-	PrivateKeyFile string
+	Debug        bool
+	DebugKeyPath string
 }
 
 // Run executes the Packer build step that generates SSH key pairs.
-// The key pairs are added to the multistep state as "ssh_private_key" and
-// "ssh_public_key".
-func (s *StepCreateSSHKey) Run(state multistep.StateBag) multistep.StepAction {
+// The key pairs are added to the ssh config
+func (s *StepCreateSSHKey) Run(_ context.Context, state multistep.StateBag) multistep.StepAction {
 	ui := state.Get("ui").(packer.Ui)
+	config := state.Get("config").(*Config)
 
-	if s.PrivateKeyFile != "" {
+	if config.Comm.SSHPrivateKeyFile != "" {
 		ui.Say("Using existing SSH private key")
-		privateKeyBytes, err := ioutil.ReadFile(s.PrivateKeyFile)
+		privateKeyBytes, err := ioutil.ReadFile(config.Comm.SSHPrivateKeyFile)
 		if err != nil {
 			state.Put("error", fmt.Errorf(
 				"Error loading configured private key file: %s", err))
 			return multistep.ActionHalt
 		}
 
-		state.Put("ssh_private_key", string(privateKeyBytes))
-		state.Put("ssh_public_key", "")
+		config.Comm.SSHPrivateKey = privateKeyBytes
+		config.Comm.SSHPublicKey = nil
 
 		return multistep.ActionContinue
 	}
@@ -64,8 +64,8 @@ func (s *StepCreateSSHKey) Run(state multistep.StateBag) multistep.StepAction {
 		ui.Error(err.Error())
 		return multistep.ActionHalt
 	}
-	state.Put("ssh_private_key", string(pem.EncodeToMemory(&priv_blk)))
-	state.Put("ssh_public_key", string(ssh.MarshalAuthorizedKey(pub)))
+	config.Comm.SSHPrivateKey = pem.EncodeToMemory(&priv_blk)
+	config.Comm.SSHPublicKey = ssh.MarshalAuthorizedKey(pub)
 
 	if s.Debug {
 		ui.Message(fmt.Sprintf("Saving key for debug purposes: %s", s.DebugKeyPath))

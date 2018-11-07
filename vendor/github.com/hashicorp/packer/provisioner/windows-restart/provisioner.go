@@ -3,6 +3,7 @@ package restart
 import (
 	"bytes"
 	"fmt"
+	"io"
 
 	"log"
 	"strings"
@@ -16,11 +17,11 @@ import (
 	"github.com/masterzen/winrm"
 )
 
-var DefaultRestartCommand = "shutdown /r /f /t 0 /c \"packer restart\""
+var DefaultRestartCommand = `shutdown /r /f /t 0 /c "packer restart"`
 var DefaultRestartCheckCommand = winrm.Powershell(`echo "${env:COMPUTERNAME} restarted."`)
 var retryableSleep = 5 * time.Second
-var TryCheckReboot = "shutdown.exe -f -r -t 60"
-var AbortReboot = "shutdown.exe -a"
+var TryCheckReboot = `shutdown /r /f /t 60 /c "packer restart test"`
+var AbortReboot = `shutdown /a`
 
 type Config struct {
 	common.PackerConfig `mapstructure:",squash"`
@@ -113,6 +114,12 @@ var waitForRestart = func(p *Provisioner, comm packer.Communicator) error {
 	var cmd *packer.RemoteCmd
 	trycommand := TryCheckReboot
 	abortcommand := AbortReboot
+
+	// This sleep works around an azure/winrm bug. For more info see
+	// https://github.com/hashicorp/packer/issues/5257; we can remove the
+	// sleep when the underlying bug has been resolved.
+	time.Sleep(1 * time.Second)
+
 	// Stolen from Vagrant reboot checker
 	for {
 		log.Printf("Check if machine is rebooting...")
@@ -122,8 +129,12 @@ var waitForRestart = func(p *Provisioner, comm packer.Communicator) error {
 			// Couldn't execute, we assume machine is rebooting already
 			break
 		}
-
-		if cmd.ExitStatus == 1115 || cmd.ExitStatus == 1190 {
+		if cmd.ExitStatus == 1 {
+			// SSH provisioner, and we're already rebooting. SSH can reconnect
+			// without our help; exit this wait loop.
+			break
+		}
+		if cmd.ExitStatus == 1115 || cmd.ExitStatus == 1190 || cmd.ExitStatus == 1717 {
 			// Reboot already in progress but not completed
 			log.Printf("Reboot already in progress, waiting...")
 			time.Sleep(10 * time.Second)
@@ -168,7 +179,6 @@ WaitLoop:
 			return fmt.Errorf("Interrupt detected, quitting waiting for machine to restart")
 		}
 	}
-
 	return nil
 
 }
@@ -212,20 +222,15 @@ var waitForCommunicator = func(p *Provisioner) error {
 		// provisioning before powershell is actually ready.
 		// In this next check, we parse stdout to make sure that the command is
 		// actually running as expected.
-		var stdout, stderr bytes.Buffer
-		cmdModuleLoad := &packer.RemoteCmd{
-			Command: DefaultRestartCheckCommand,
-			Stdin:   nil,
-			Stdout:  &stdout,
-			Stderr:  &stderr}
+		cmdModuleLoad := &packer.RemoteCmd{Command: DefaultRestartCheckCommand}
+		var buf, buf2 bytes.Buffer
+		cmdModuleLoad.Stdout = &buf
+		cmdModuleLoad.Stdout = io.MultiWriter(cmdModuleLoad.Stdout, &buf2)
 
-		p.comm.Start(cmdModuleLoad)
-		cmdModuleLoad.Wait()
+		cmdModuleLoad.StartWithUi(p.comm, p.ui)
+		stdoutToRead := buf2.String()
 
-		stdoutToRead := stdout.String()
-		stderrToRead := stderr.String()
 		if !strings.Contains(stdoutToRead, "restarted.") {
-			log.Printf("Stderr is %s", stderrToRead)
 			log.Printf("echo didn't succeed; retrying...")
 			continue
 		}

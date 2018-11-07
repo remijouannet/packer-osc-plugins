@@ -1,12 +1,13 @@
 package instance
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/hashicorp/packer/helper/multistep"
 	"github.com/hashicorp/packer/packer"
-	"github.com/mitchellh/multistep"
 	awscommon "github.com/remijouannet/packer-osc-plugins/builder/osc/common"
 )
 
@@ -15,7 +16,7 @@ type StepRegisterAMI struct {
 	EnableAMISriovNetSupport bool
 }
 
-func (s *StepRegisterAMI) Run(state multistep.StateBag) multistep.StepAction {
+func (s *StepRegisterAMI) Run(_ context.Context, state multistep.StateBag) multistep.StepAction {
 	config := state.Get("config").(*Config)
 	ec2conn := state.Get("ec2").(*ec2.EC2)
 	manifestPath := state.Get("remote_manifest_path").(string)

@@ -5,8 +5,8 @@ import (
 
 	"github.com/hashicorp/packer/common"
 	"github.com/hashicorp/packer/helper/communicator"
+	"github.com/hashicorp/packer/helper/multistep"
 	"github.com/hashicorp/packer/packer"
-	"github.com/mitchellh/multistep"
 )
 
 const BuilderId = "fnoeding.null"
@@ -32,13 +32,9 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 	if b.config.CommConfig.Type != "none" {
 		steps = append(steps,
 			&communicator.StepConnect{
-				Config: &b.config.CommConfig,
-				Host:   CommHost(b.config.CommConfig.Host()),
-				SSHConfig: SSHConfig(
-					b.config.CommConfig.SSHAgentAuth,
-					b.config.CommConfig.SSHUsername,
-					b.config.CommConfig.SSHPassword,
-					b.config.CommConfig.SSHPrivateKey),
+				Config:    &b.config.CommConfig,
+				Host:      CommHost(b.config.CommConfig.Host()),
+				SSHConfig: b.config.CommConfig.SSHConfigFunc(),
 			},
 		)
 	}

@@ -10,9 +10,9 @@ import (
 	"github.com/hashicorp/packer/common"
 	"github.com/hashicorp/packer/helper/communicator"
 	"github.com/hashicorp/packer/helper/config"
+	"github.com/hashicorp/packer/helper/multistep"
 	"github.com/hashicorp/packer/packer"
 	"github.com/hashicorp/packer/template/interpolate"
-	"github.com/mitchellh/multistep"
 )
 
 // The unique ID for this builder
@@ -52,7 +52,16 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, error) {
 		return nil, errs
 	}
 
-	log.Println(common.ScrubConfig(b.config, b.config.Password))
+	if b.config.ImageConfig.ImageDiskFormat != "" && !b.config.RunConfig.UseBlockStorageVolume {
+		return nil, fmt.Errorf("use_blockstorage_volume must be true if image_disk_format is specified.")
+	}
+
+	// By default, instance name is same as image name
+	if b.config.InstanceName == "" {
+		b.config.InstanceName = b.config.ImageName
+	}
+
+	packer.LogSecretFilter.Set(b.config.Password)
 	return nil, nil
 }
 
@@ -64,35 +73,43 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 
 	// Setup the state bag and initial state for the steps
 	state := new(multistep.BasicStateBag)
-	state.Put("config", b.config)
+	state.Put("config", &b.config)
 	state.Put("hook", hook)
 	state.Put("ui", ui)
 
 	// Build the steps
 	steps := []multistep.Step{
-		&StepLoadExtensions{},
 		&StepLoadFlavor{
 			Flavor: b.config.Flavor,
 		},
 		&StepKeyPair{
-			Debug:                b.config.PackerDebug,
-			DebugKeyPath:         fmt.Sprintf("os_%s.pem", b.config.PackerBuildName),
-			KeyPairName:          b.config.SSHKeyPairName,
-			TemporaryKeyPairName: b.config.TemporaryKeyPairName,
-			PrivateKeyFile:       b.config.RunConfig.Comm.SSHPrivateKey,
-			SSHAgentAuth:         b.config.RunConfig.Comm.SSHAgentAuth,
+			Debug:        b.config.PackerDebug,
+			Comm:         &b.config.Comm,
+			DebugKeyPath: fmt.Sprintf("os_%s.pem", b.config.PackerBuildName),
+		},
+		&StepSourceImageInfo{
+			SourceImage:      b.config.RunConfig.SourceImage,
+			SourceImageName:  b.config.RunConfig.SourceImageName,
+			SourceImageOpts:  b.config.RunConfig.sourceImageOpts,
+			SourceMostRecent: b.config.SourceImageFilters.MostRecent,
+		},
+		&StepCreateVolume{
+			UseBlockStorageVolume:  b.config.UseBlockStorageVolume,
+			VolumeName:             b.config.VolumeName,
+			VolumeType:             b.config.VolumeType,
+			VolumeAvailabilityZone: b.config.VolumeAvailabilityZone,
 		},
 		&StepRunSourceServer{
-			Name:             b.config.ImageName,
-			SourceImage:      b.config.SourceImage,
-			SourceImageName:  b.config.SourceImageName,
-			SecurityGroups:   b.config.SecurityGroups,
-			Networks:         b.config.Networks,
-			AvailabilityZone: b.config.AvailabilityZone,
-			UserData:         b.config.UserData,
-			UserDataFile:     b.config.UserDataFile,
-			ConfigDrive:      b.config.ConfigDrive,
-			InstanceMetadata: b.config.InstanceMetadata,
+			Name:                  b.config.InstanceName,
+			SecurityGroups:        b.config.SecurityGroups,
+			Networks:              b.config.Networks,
+			Ports:                 b.config.Ports,
+			AvailabilityZone:      b.config.AvailabilityZone,
+			UserData:              b.config.UserData,
+			UserDataFile:          b.config.UserDataFile,
+			ConfigDrive:           b.config.ConfigDrive,
+			InstanceMetadata:      b.config.InstanceMetadata,
+			UseBlockStorageVolume: b.config.UseBlockStorageVolume,
 		},
 		&StepGetPassword{
 			Debug: b.config.PackerDebug,
@@ -102,24 +119,29 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 			Wait: b.config.RackconnectWait,
 		},
 		&StepAllocateIp{
-			FloatingIpPool: b.config.FloatingIpPool,
-			FloatingIp:     b.config.FloatingIp,
-			ReuseIps:       b.config.ReuseIps,
+			FloatingIPNetwork: b.config.FloatingIPNetwork,
+			FloatingIP:        b.config.FloatingIP,
+			ReuseIPs:          b.config.ReuseIPs,
 		},
 		&communicator.StepConnect{
 			Config: &b.config.RunConfig.Comm,
 			Host: CommHost(
 				computeClient,
-				b.config.SSHInterface,
-				b.config.SSHIPVersion),
-			SSHConfig: SSHConfig(
-				b.config.RunConfig.Comm.SSHAgentAuth,
-				b.config.RunConfig.Comm.SSHUsername,
-				b.config.RunConfig.Comm.SSHPassword),
+				b.config.Comm.SSHInterface,
+				b.config.Comm.SSHIPVersion),
+			SSHConfig: b.config.RunConfig.Comm.SSHConfigFunc(),
 		},
 		&common.StepProvision{},
+		&common.StepCleanupTempKeys{
+			Comm: &b.config.RunConfig.Comm,
+		},
 		&StepStopServer{},
-		&stepCreateImage{},
+		&StepDetachVolume{
+			UseBlockStorageVolume: b.config.UseBlockStorageVolume,
+		},
+		&stepCreateImage{
+			UseBlockStorageVolume: b.config.UseBlockStorageVolume,
+		},
 		&stepUpdateImageVisibility{},
 		&stepAddImageMembers{},
 	}

@@ -1,12 +1,13 @@
 package ebs
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/hashicorp/packer/helper/multistep"
 	"github.com/hashicorp/packer/packer"
-	"github.com/mitchellh/multistep"
 	"github.com/remijouannet/packer-osc-plugins/builder/osc/common"
 )
 
@@ -17,7 +18,7 @@ type stepCleanupVolumes struct {
 	BlockDevices common.BlockDevices
 }
 
-func (s *stepCleanupVolumes) Run(state multistep.StateBag) multistep.StepAction {
+func (s *stepCleanupVolumes) Run(_ context.Context, state multistep.StateBag) multistep.StepAction {
 	// stepCleanupVolumes is for Cleanup only
 	return multistep.ActionContinue
 }

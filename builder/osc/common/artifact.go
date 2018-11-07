@@ -86,7 +86,7 @@ func (a *Artifact) Destroy() error {
 			errors = append(errors, err)
 		}
 
-		// TODO(mitchellh): Delete the snapshots associated with an AMI too
+		// TODO(hashicorp/packer/helper): Delete the snapshots associated with an AMI too
 	}
 
 	if len(errors) > 0 {

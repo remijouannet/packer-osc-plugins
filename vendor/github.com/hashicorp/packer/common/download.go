@@ -15,7 +15,12 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
+	"path/filepath"
 	"runtime"
+	"strings"
+
+	"github.com/hashicorp/packer/packer"
 )
 
 // DownloadConfig is the configuration given to instantiate a new
@@ -51,8 +56,7 @@ type DownloadConfig struct {
 
 // A DownloadClient helps download, verify checksums, etc.
 type DownloadClient struct {
-	config     *DownloadConfig
-	downloader Downloader
+	config *DownloadConfig
 }
 
 // HashForType returns the Hash implementation for the given string
@@ -74,24 +78,36 @@ func HashForType(t string) hash.Hash {
 
 // NewDownloadClient returns a new DownloadClient for the given
 // configuration.
-func NewDownloadClient(c *DownloadConfig) *DownloadClient {
+func NewDownloadClient(c *DownloadConfig, ui packer.Ui) *DownloadClient {
+	// Create downloader map if it hasn't been specified already.
 	if c.DownloaderMap == nil {
 		c.DownloaderMap = map[string]Downloader{
-			"http":  &HTTPDownloader{userAgent: c.UserAgent},
-			"https": &HTTPDownloader{userAgent: c.UserAgent},
+			"file":  &FileDownloader{Ui: ui, bufferSize: nil},
+			"http":  &HTTPDownloader{Ui: ui, userAgent: c.UserAgent},
+			"https": &HTTPDownloader{Ui: ui, userAgent: c.UserAgent},
+			"smb":   &SMBDownloader{Ui: ui, bufferSize: nil},
 		}
 	}
-
 	return &DownloadClient{config: c}
 }
 
-// A downloader is responsible for actually taking a remote URL and
-// downloading it.
+// Downloader defines what capabilities a downloader should have.
 type Downloader interface {
+	Resume()
 	Cancel()
+	ProgressBar() packer.ProgressBar
+}
+
+// A LocalDownloader is responsible for converting a uri to a local path
+//	that the platform can open directly.
+type LocalDownloader interface {
+	toPath(string, url.URL) (string, error)
+}
+
+// A RemoteDownloader is responsible for actually taking a remote URL and
+//	downloading it.
+type RemoteDownloader interface {
 	Download(*os.File, *url.URL) error
-	Progress() uint
-	Total() uint
 }
 
 func (d *DownloadClient) Cancel() {
@@ -105,61 +121,64 @@ func (d *DownloadClient) Get() (string, error) {
 		return d.config.TargetPath, nil
 	}
 
+	/* parse the configuration url into a net/url object */
 	u, err := url.Parse(d.config.Url)
 	if err != nil {
 		return "", err
 	}
-
 	log.Printf("Parsed URL: %#v", u)
 
-	// Files when we don't copy the file are special cased.
-	var f *os.File
-	var finalPath string
-	sourcePath := ""
-	if u.Scheme == "file" && !d.config.CopyFile {
-		// This is special case for relative path in this case user specify
-		// file:../ and after parse destination goes to Opaque
-		if u.Path != "" {
-			// If url.Path is set just use this
-			finalPath = u.Path
-		} else if u.Opaque != "" {
-			// otherwise try url.Opaque
-			finalPath = u.Opaque
-		}
-		// This is a special case where we use a source file that already exists
-		// locally and we don't make a copy. Normally we would copy or download.
-		log.Printf("[DEBUG] Using local file: %s", finalPath)
+	/* use the current working directory as the base for relative uri's */
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
 
-		// Remove forward slash on absolute Windows file URLs before processing
-		if runtime.GOOS == "windows" && len(finalPath) > 0 && finalPath[0] == '/' {
-			finalPath = finalPath[1:]
-		}
-		// Keep track of the source so we can make sure not to delete this later
-		sourcePath = finalPath
-		if _, err = os.Stat(finalPath); err != nil {
-			return "", err
-		}
-	} else {
+	// Determine which is the correct downloader to use
+	var finalPath string
+
+	var ok bool
+	downloader, ok := d.config.DownloaderMap[u.Scheme]
+	if !ok {
+		return "", fmt.Errorf("No downloader for scheme: %s", u.Scheme)
+	}
+
+	remote, ok := downloader.(RemoteDownloader)
+	if !ok {
+		return "", fmt.Errorf("Unable to treat uri scheme %s as a Downloader. : %T", u.Scheme, downloader)
+	}
+
+	local, ok := downloader.(LocalDownloader)
+	if !ok && !d.config.CopyFile {
+		d.config.CopyFile = true
+	}
+
+	// If we're copying the file, then just use the actual downloader
+	if d.config.CopyFile {
+		var f *os.File
 		finalPath = d.config.TargetPath
 
-		var ok bool
-		d.downloader, ok = d.config.DownloaderMap[u.Scheme]
-		if !ok {
-			return "", fmt.Errorf("No downloader for scheme: %s", u.Scheme)
-		}
-
-		// Otherwise, download using the downloader.
 		f, err = os.OpenFile(finalPath, os.O_RDWR|os.O_CREATE, os.FileMode(0666))
 		if err != nil {
 			return "", err
 		}
 
 		log.Printf("[DEBUG] Downloading: %s", u.String())
-		err = d.downloader.Download(f, u)
+		err = remote.Download(f, u)
 		f.Close()
 		if err != nil {
 			return "", err
 		}
+
+		// Otherwise if our Downloader is a LocalDownloader we can just use the
+		//	path after transforming it.
+	} else {
+		finalPath, err = local.toPath(cwd, *u)
+		if err != nil {
+			return "", err
+		}
+
+		log.Printf("[DEBUG] Using local file: %s", finalPath)
 	}
 
 	if d.config.Hash != nil {
@@ -167,7 +186,7 @@ func (d *DownloadClient) Get() (string, error) {
 		verify, err = d.VerifyChecksum(finalPath)
 		if err == nil && !verify {
 			// Only delete the file if we made a copy or downloaded it
-			if sourcePath != finalPath {
+			if d.config.CopyFile {
 				os.Remove(finalPath)
 			}
 
@@ -178,15 +197,6 @@ func (d *DownloadClient) Get() (string, error) {
 	}
 
 	return finalPath, err
-}
-
-// PercentProgress returns the download progress as a percentage.
-func (d *DownloadClient) PercentProgress() int {
-	if d.downloader == nil {
-		return -1
-	}
-
-	return int((float64(d.downloader.Progress()) / float64(d.downloader.Total())) * 100)
 }
 
 // VerifyChecksum tests that the path matches the checksum for the
@@ -211,25 +221,28 @@ func (d *DownloadClient) VerifyChecksum(path string) (bool, error) {
 // HTTPDownloader is an implementation of Downloader that downloads
 // files over HTTP.
 type HTTPDownloader struct {
-	progress  uint
-	total     uint
 	userAgent string
+
+	Ui packer.Ui
 }
 
-func (*HTTPDownloader) Cancel() {
+func (d *HTTPDownloader) Cancel() {
+	// TODO(mitchellh): Implement
+}
+
+func (d *HTTPDownloader) Resume() {
 	// TODO(mitchellh): Implement
 }
 
 func (d *HTTPDownloader) Download(dst *os.File, src *url.URL) error {
-	log.Printf("Starting download: %s", src.String())
+	log.Printf("Starting download over HTTP: %s", src.String())
 
 	// Seek to the beginning by default
 	if _, err := dst.Seek(0, 0); err != nil {
 		return err
 	}
 
-	// Reset our progress
-	d.progress = 0
+	var current int64
 
 	// Make the request. We first make a HEAD request so we can check
 	// if the server supports range queries. If the server/URL doesn't
@@ -250,16 +263,36 @@ func (d *HTTPDownloader) Download(dst *os.File, src *url.URL) error {
 	}
 
 	resp, err := httpClient.Do(req)
-	if err == nil && (resp.StatusCode >= 200 && resp.StatusCode < 300) {
-		// If the HEAD request succeeded, then attempt to set the range
-		// query if we can.
-		if resp.Header.Get("Accept-Ranges") == "bytes" {
-			if fi, err := dst.Stat(); err == nil {
-				if _, err = dst.Seek(0, os.SEEK_END); err == nil {
-					req.Header.Set("Range", fmt.Sprintf("bytes=%d-", fi.Size()))
-					d.progress = uint(fi.Size())
+	if err != nil || resp == nil {
+
+		if resp == nil {
+			log.Printf("[DEBUG] (download) HTTP connection error: %s", err.Error())
+
+		} else if resp.StatusCode >= 400 && resp.StatusCode < 600 {
+			log.Printf("[DEBUG] (download) Non-successful HTTP status code (%s) while making HEAD request: %s", resp.Status, err.Error())
+
+		} else {
+			log.Printf("[DEBUG] (download) Error making HTTP HEAD request (%s): %s", resp.Status, err.Error())
+		}
+
+	} else {
+
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			// If the HEAD request succeeded, then attempt to set the range
+			// query if we can.
+
+			if resp.Header.Get("Accept-Ranges") == "bytes" {
+				if fi, err := dst.Stat(); err == nil {
+					if _, err = dst.Seek(0, os.SEEK_END); err == nil {
+						req.Header.Set("Range", fmt.Sprintf("bytes=%d-", fi.Size()))
+
+						current = fi.Size()
+					}
 				}
 			}
+
+		} else {
+			log.Printf("[DEBUG] (download) Unexpected HTTP response during HEAD request: %s", resp.Status)
 		}
 	}
 
@@ -267,19 +300,34 @@ func (d *HTTPDownloader) Download(dst *os.File, src *url.URL) error {
 	req.Method = "GET"
 
 	resp, err = httpClient.Do(req)
-	if err != nil {
-		return err
+	if err == nil && (resp.StatusCode >= 400 && resp.StatusCode < 600) {
+		return fmt.Errorf("Error making HTTP GET request: %s", resp.Status)
+
+	} else if err != nil {
+		if resp == nil {
+			return fmt.Errorf("HTTP connection error: %s", err.Error())
+
+		} else if resp.StatusCode >= 400 && resp.StatusCode < 600 {
+			return fmt.Errorf("HTTP %s error: %s", resp.Status, err.Error())
+		}
+		return fmt.Errorf("HTTP error: %s", err.Error())
 	}
 
-	d.total = d.progress + uint(resp.ContentLength)
+	total := current + resp.ContentLength
+
+	bar := d.ProgressBar()
+	bar.Start(total)
+	defer bar.Finish()
+	bar.Add(current)
+
+	body := bar.NewProxyReader(resp.Body)
+
 	var buffer [4096]byte
 	for {
-		n, err := resp.Body.Read(buffer[:])
+		n, err := body.Read(buffer[:])
 		if err != nil && err != io.EOF {
 			return err
 		}
-
-		d.progress += uint(n)
 
 		if _, werr := dst.Write(buffer[:n]); werr != nil {
 			return werr
@@ -289,14 +337,230 @@ func (d *HTTPDownloader) Download(dst *os.File, src *url.URL) error {
 			break
 		}
 	}
-
 	return nil
 }
 
-func (d *HTTPDownloader) Progress() uint {
-	return d.progress
+// FileDownloader is an implementation of Downloader that downloads
+// files using the regular filesystem.
+type FileDownloader struct {
+	bufferSize *uint
+
+	active bool
+	Ui     packer.Ui
 }
 
-func (d *HTTPDownloader) Total() uint {
-	return d.total
+func (d *FileDownloader) Cancel() {
+	d.active = false
 }
+
+func (d *FileDownloader) Resume() {
+	// TODO: Implement
+}
+
+func (d *FileDownloader) toPath(base string, uri url.URL) (string, error) {
+	var result string
+
+	// absolute path -- file://c:/absolute/path -> c:/absolute/path
+	if strings.HasSuffix(uri.Host, ":") {
+		result = path.Join(uri.Host, uri.Path)
+
+		// semi-absolute path (current drive letter)
+		//	-- file:///absolute/path -> drive:/absolute/path
+	} else if uri.Host == "" && strings.HasPrefix(uri.Path, "/") {
+		apath := uri.Path
+		components := strings.Split(apath, "/")
+		volume := filepath.VolumeName(base)
+
+		// semi-absolute absolute path (includes volume letter)
+		// -- file://drive:/path -> drive:/absolute/path
+		if len(components) > 1 && strings.HasSuffix(components[1], ":") {
+			volume = components[1]
+			apath = path.Join(components[2:]...)
+		}
+
+		result = path.Join(volume, apath)
+
+		// relative path -- file://./relative/path -> ./relative/path
+	} else if uri.Host == "." {
+		result = path.Join(base, uri.Path)
+
+		// relative path -- file://relative/path -> ./relative/path
+	} else {
+		result = path.Join(base, uri.Host, uri.Path)
+	}
+	return filepath.ToSlash(result), nil
+}
+
+func (d *FileDownloader) Download(dst *os.File, src *url.URL) error {
+	d.active = false
+
+	/* check the uri's scheme to make sure it matches */
+	if src == nil || src.Scheme != "file" {
+		return fmt.Errorf("Unexpected uri scheme: %s", src.Scheme)
+	}
+	uri := src
+
+	/* use the current working directory as the base for relative uri's */
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	/* determine which uri format is being used and convert to a real path */
+	realpath, err := d.toPath(cwd, *uri)
+	if err != nil {
+		return err
+	}
+
+	/* download the file using the operating system's facilities */
+	d.active = true
+
+	f, err := os.Open(realpath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// get the file size
+	fi, err := f.Stat()
+	if err != nil {
+		return err
+	}
+
+	bar := d.ProgressBar()
+
+	bar.Start(fi.Size())
+	defer bar.Finish()
+	fProxy := bar.NewProxyReader(f)
+
+	// no bufferSize specified, so copy synchronously.
+	if d.bufferSize == nil {
+		_, err = io.Copy(dst, fProxy)
+		d.active = false
+
+		// use a goro in case someone else wants to enable cancel/resume
+	} else {
+		errch := make(chan error)
+		go func(d *FileDownloader, r io.Reader, w io.Writer, e chan error) {
+			for d.active {
+				_, err := io.CopyN(w, r, int64(*d.bufferSize))
+				if err != nil {
+					break
+				}
+
+			}
+			d.active = false
+			e <- err
+		}(d, fProxy, dst, errch)
+
+		// ...and we spin until it's done
+		err = <-errch
+	}
+
+	return err
+}
+
+// SMBDownloader is an implementation of Downloader that downloads
+// files using the "\\" path format on Windows
+type SMBDownloader struct {
+	bufferSize *uint
+
+	active bool
+	Ui     packer.Ui
+}
+
+func (d *SMBDownloader) Cancel() {
+	d.active = false
+}
+
+func (d *SMBDownloader) Resume() {
+	// TODO: Implement
+}
+
+func (d *SMBDownloader) toPath(base string, uri url.URL) (string, error) {
+	const UNCPrefix = string(os.PathSeparator) + string(os.PathSeparator)
+
+	if runtime.GOOS != "windows" {
+		return "", fmt.Errorf("Support for SMB based uri's are not supported on %s", runtime.GOOS)
+	}
+
+	return UNCPrefix + filepath.ToSlash(path.Join(uri.Host, uri.Path)), nil
+}
+
+func (d *SMBDownloader) Download(dst *os.File, src *url.URL) error {
+
+	/* first we warn the world if we're not running windows */
+	if runtime.GOOS != "windows" {
+		return fmt.Errorf("Support for SMB based uri's are not supported on %s", runtime.GOOS)
+	}
+
+	d.active = false
+
+	/* convert the uri using the net/url module to a UNC path */
+	if src == nil || src.Scheme != "smb" {
+		return fmt.Errorf("Unexpected uri scheme: %s", src.Scheme)
+	}
+	uri := src
+
+	/* use the current working directory as the base for relative uri's */
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	/* convert uri to an smb-path */
+	realpath, err := d.toPath(cwd, *uri)
+	if err != nil {
+		return err
+	}
+
+	/* Open up the "\\"-prefixed path using the Windows filesystem */
+	d.active = true
+
+	f, err := os.Open(realpath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// get the file size (at the risk of performance)
+	fi, err := f.Stat()
+	if err != nil {
+		return err
+	}
+
+	bar := d.ProgressBar()
+
+	bar.Start(fi.Size())
+	defer bar.Finish()
+	fProxy := bar.NewProxyReader(f)
+
+	// no bufferSize specified, so copy synchronously.
+	if d.bufferSize == nil {
+		_, err = io.Copy(dst, fProxy)
+		d.active = false
+
+		// use a goro in case someone else wants to enable cancel/resume
+	} else {
+		errch := make(chan error)
+		go func(d *SMBDownloader, r io.Reader, w io.Writer, e chan error) {
+			for d.active {
+				_, err := io.CopyN(w, r, int64(*d.bufferSize))
+				if err != nil {
+					break
+				}
+
+			}
+			d.active = false
+			e <- err
+		}(d, fProxy, dst, errch)
+
+		// ...and as usual we spin until it's done
+		err = <-errch
+	}
+	return err
+}
+
+func (d *HTTPDownloader) ProgressBar() packer.ProgressBar { return d.Ui.ProgressBar() }
+func (d *FileDownloader) ProgressBar() packer.ProgressBar { return d.Ui.ProgressBar() }
+func (d *SMBDownloader) ProgressBar() packer.ProgressBar  { return d.Ui.ProgressBar() }

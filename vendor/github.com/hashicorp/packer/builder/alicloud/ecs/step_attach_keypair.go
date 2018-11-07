@@ -1,28 +1,30 @@
 package ecs
 
 import (
+	"context"
 	"fmt"
+
+	"time"
 
 	"github.com/denverdino/aliyungo/common"
 	"github.com/denverdino/aliyungo/ecs"
+	"github.com/hashicorp/packer/helper/multistep"
 	"github.com/hashicorp/packer/packer"
-	"github.com/mitchellh/multistep"
-	"time"
 )
 
-type stepAttachKeyPar struct {
+type stepAttachKeyPair struct {
 }
 
-func (s *stepAttachKeyPar) Run(state multistep.StateBag) multistep.StepAction {
-	keyPairName := state.Get("keyPair").(string)
+func (s *stepAttachKeyPair) Run(_ context.Context, state multistep.StateBag) multistep.StepAction {
+	ui := state.Get("ui").(packer.Ui)
+	client := state.Get("client").(*ecs.Client)
+	config := state.Get("config").(*Config)
+	instance := state.Get("instance").(*ecs.InstanceAttributesType)
+	timeoutPoint := time.Now().Add(120 * time.Second)
+	keyPairName := config.Comm.SSHKeyPairName
 	if keyPairName == "" {
 		return multistep.ActionContinue
 	}
-	ui := state.Get("ui").(packer.Ui)
-	client := state.Get("client").(*ecs.Client)
-	config := state.Get("config").(Config)
-	instance := state.Get("instance").(*ecs.InstanceAttributesType)
-	timeoutPoint := time.Now().Add(120 * time.Second)
 	for {
 		err := client.AttachKeyPair(&ecs.AttachKeyPairArgs{RegionId: common.Region(config.AlicloudRegion),
 			KeyPairName: keyPairName, InstanceIds: "[\"" + instance.InstanceId + "\"]"})
@@ -48,15 +50,15 @@ func (s *stepAttachKeyPar) Run(state multistep.StateBag) multistep.StepAction {
 	return multistep.ActionContinue
 }
 
-func (s *stepAttachKeyPar) Cleanup(state multistep.StateBag) {
-	keyPairName := state.Get("keyPair").(string)
+func (s *stepAttachKeyPair) Cleanup(state multistep.StateBag) {
+	client := state.Get("client").(*ecs.Client)
+	config := state.Get("config").(*Config)
+	ui := state.Get("ui").(packer.Ui)
+	instance := state.Get("instance").(*ecs.InstanceAttributesType)
+	keyPairName := config.Comm.SSHKeyPairName
 	if keyPairName == "" {
 		return
 	}
-	client := state.Get("client").(*ecs.Client)
-	config := state.Get("config").(Config)
-	ui := state.Get("ui").(packer.Ui)
-	instance := state.Get("instance").(*ecs.InstanceAttributesType)
 
 	err := client.DetachKeyPair(&ecs.DetachKeyPairArgs{RegionId: common.Region(config.AlicloudRegion),
 		KeyPairName: keyPairName, InstanceIds: "[\"" + instance.InstanceId + "\"]"})

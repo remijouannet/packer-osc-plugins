@@ -1,13 +1,14 @@
 package common
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"regexp"
 	"strings"
 
+	"github.com/hashicorp/packer/helper/multistep"
 	"github.com/hashicorp/packer/packer"
-	"github.com/mitchellh/multistep"
 )
 
 // This step cleans up the VMX by removing or changing this prior to
@@ -24,7 +25,7 @@ type StepCleanVMX struct {
 	VNCEnabled               bool
 }
 
-func (s StepCleanVMX) Run(state multistep.StateBag) multistep.StepAction {
+func (s StepCleanVMX) Run(_ context.Context, state multistep.StateBag) multistep.StepAction {
 	ui := state.Get("ui").(packer.Ui)
 	vmxPath := state.Get("vmx_path").(string)
 
@@ -46,7 +47,7 @@ func (s StepCleanVMX) Run(state multistep.StateBag) multistep.StepAction {
 	}
 	vmxData["floppy0.present"] = "FALSE"
 
-	devRe := regexp.MustCompile(`^ide\d:\d\.`)
+	devRe := regexp.MustCompile(`^(ide|sata)\d:\d\.`)
 	for k, v := range vmxData {
 		ide := devRe.FindString(k)
 		if ide == "" || v != "cdrom-image" {

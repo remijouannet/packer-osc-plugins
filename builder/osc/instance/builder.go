@@ -13,14 +13,14 @@ import (
 	"github.com/hashicorp/packer/common"
 	"github.com/hashicorp/packer/helper/communicator"
 	"github.com/hashicorp/packer/helper/config"
+	"github.com/hashicorp/packer/helper/multistep"
 	"github.com/hashicorp/packer/packer"
 	"github.com/hashicorp/packer/template/interpolate"
-	"github.com/mitchellh/multistep"
 	awscommon "github.com/remijouannet/packer-osc-plugins/builder/osc/common"
 )
 
 // The unique ID for this builder
-const BuilderId = "mitchellh.amazon.instance"
+const BuilderId = "hashicorp/packer/helper.amazon.instance"
 
 // Config is the configuration that is chained through the steps and
 // settable from the template.
@@ -159,7 +159,7 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, error) {
 		return nil, errs
 	}
 
-	log.Println(common.ScrubConfig(b.config, b.config.AccessKey, b.config.SecretKey))
+	packer.LogSecretFilter.Set(b.config.AccessKey, b.config.SecretKey, b.config.Token)
 	return nil, nil
 }
 
@@ -245,17 +245,14 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 			AmiFilters:               b.config.SourceAmiFilter,
 		},
 		&awscommon.StepKeyPair{
-			Debug:                b.config.PackerDebug,
-			SSHAgentAuth:         b.config.Comm.SSHAgentAuth,
-			DebugKeyPath:         fmt.Sprintf("ec2_%s.pem", b.config.PackerBuildName),
-			KeyPairName:          b.config.SSHKeyPairName,
-			PrivateKeyFile:       b.config.RunConfig.Comm.SSHPrivateKey,
-			TemporaryKeyPairName: b.config.TemporaryKeyPairName,
+			Debug:        b.config.PackerDebug,
+			Comm:         &b.config.RunConfig.Comm,
+			DebugKeyPath: fmt.Sprintf("ec2_%s.pem", b.config.PackerBuildName),
 		},
 		&awscommon.StepSecurityGroup{
-			CommConfig:       &b.config.RunConfig.Comm,
-			SecurityGroupIds: b.config.SecurityGroupIds,
-			VpcId:            b.config.VpcId,
+			CommConfig:            &b.config.RunConfig.Comm,
+			SecurityGroupIds:      b.config.SecurityGroupIds,
+			VpcId:                 b.config.VpcId,
 			TemporarySGSourceCidr: b.config.TemporarySGSourceCidr,
 		},
 		instanceStep,
@@ -268,11 +265,8 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 			Config: &b.config.RunConfig.Comm,
 			Host: awscommon.SSHHost(
 				ec2conn,
-				b.config.SSHPrivateIp),
-			SSHConfig: awscommon.SSHConfig(
-				b.config.RunConfig.Comm.SSHAgentAuth,
-				b.config.RunConfig.Comm.SSHUsername,
-				b.config.RunConfig.Comm.SSHPassword),
+				b.config.Comm.SSHInterface),
+			SSHConfig: b.config.RunConfig.Comm.SSHConfigFunc(),
 		},
 		&common.StepProvision{},
 		&StepUploadX509Cert{},

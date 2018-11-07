@@ -9,24 +9,28 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/hashicorp/packer/helper/enumflag"
 	"github.com/hashicorp/packer/packer"
 	"github.com/hashicorp/packer/template"
+
+	"github.com/posener/complete"
 )
 
 type BuildCommand struct {
 	Meta
 }
 
-func (c BuildCommand) Run(args []string) int {
-	var cfgColor, cfgDebug, cfgForce, cfgParallel bool
+func (c *BuildCommand) Run(args []string) int {
+	var cfgColor, cfgDebug, cfgForce, cfgTimestamp, cfgParallel bool
 	var cfgOnError string
 	flags := c.Meta.FlagSet("build", FlagSetBuildFilter|FlagSetVars)
 	flags.Usage = func() { c.Ui.Say(c.Help()) }
 	flags.BoolVar(&cfgColor, "color", true, "")
 	flags.BoolVar(&cfgDebug, "debug", false, "")
 	flags.BoolVar(&cfgForce, "force", false, "")
+	flags.BoolVar(&cfgTimestamp, "timestamp-ui", false, "")
 	flagOnError := enumflag.New(&cfgOnError, "cleanup", "abort", "ask")
 	flags.Var(flagOnError, "on-error", "")
 	flags.BoolVar(&cfgParallel, "parallel", true, "")
@@ -98,6 +102,12 @@ func (c BuildCommand) Run(args []string) int {
 					// Add a newline between the color output and the actual output
 					c.Ui.Say("")
 				}
+				// Now add timestamps if requested
+				if cfgTimestamp {
+					ui = &packer.TimestampedUi{
+						Ui: ui,
+					}
+				}
 			}
 		}
 
@@ -138,13 +148,15 @@ func (c BuildCommand) Run(args []string) int {
 		m map[string][]packer.Artifact
 	}{m: make(map[string][]packer.Artifact)}
 	errors := make(map[string]error)
+	// ctx := context.Background()
 	for _, b := range builds {
 		// Increment the waitgroup so we wait for this item to finish properly
 		wg.Add(1)
+		// buildCtx, cancelCtx := ctx.WithCancel()
 
 		// Handle interrupts for this build
 		sigCh := make(chan os.Signal, 1)
-		signal.Notify(sigCh, os.Interrupt)
+		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 		defer signal.Stop(sigCh)
 		go func(b packer.Build) {
 			<-sigCh
@@ -154,6 +166,7 @@ func (c BuildCommand) Run(args []string) int {
 
 			log.Printf("Stopping build: %s", b.Name())
 			b.Cancel()
+			//cancelCtx()
 			log.Printf("Build cancelled: %s", b.Name())
 		}(b)
 
@@ -279,7 +292,7 @@ func (c BuildCommand) Run(args []string) int {
 	return 0
 }
 
-func (BuildCommand) Help() string {
+func (*BuildCommand) Help() string {
 	helpText := `
 Usage: packer build [options] TEMPLATE
 
@@ -288,21 +301,42 @@ Usage: packer build [options] TEMPLATE
 
 Options:
 
-  -color=false               Disable color output (on by default)
-  -debug                     Debug mode enabled for builds
-  -except=foo,bar,baz        Build all builds other than these
-  -only=foo,bar,baz          Build only the specified builds
-  -force                     Force a build to continue if artifacts exist, deletes existing artifacts
-  -machine-readable          Machine-readable output
-  -on-error=[cleanup|abort|ask] If the build fails do: clean up (default), abort, or ask
-  -parallel=false            Disable parallelization (on by default)
-  -var 'key=value'           Variable for templates, can be used multiple times.
-  -var-file=path             JSON file containing user variables.
+  -color=false                  Disable color output. (Default: color)
+  -debug                        Debug mode enabled for builds.
+  -except=foo,bar,baz           Build all builds other than these.
+  -only=foo,bar,baz             Build only the specified builds.
+  -force                        Force a build to continue if artifacts exist, deletes existing artifacts.
+  -machine-readable             Produce machine-readable output.
+  -on-error=[cleanup|abort|ask] If the build fails do: clean up (default), abort, or ask.
+  -parallel=false               Disable parallelization. (Default: parallel)
+  -timestamp-ui                 Enable prefixing of each ui output with an RFC3339 timestamp.
+  -var 'key=value'              Variable for templates, can be used multiple times.
+  -var-file=path                JSON file containing user variables.
 `
 
 	return strings.TrimSpace(helpText)
 }
 
-func (BuildCommand) Synopsis() string {
+func (*BuildCommand) Synopsis() string {
 	return "build image(s) from template"
+}
+
+func (*BuildCommand) AutocompleteArgs() complete.Predictor {
+	return complete.PredictNothing
+}
+
+func (*BuildCommand) AutocompleteFlags() complete.Flags {
+	return complete.Flags{
+		"-color":            complete.PredictNothing,
+		"-debug":            complete.PredictNothing,
+		"-except":           complete.PredictNothing,
+		"-only":             complete.PredictNothing,
+		"-force":            complete.PredictNothing,
+		"-machine-readable": complete.PredictNothing,
+		"-on-error":         complete.PredictNothing,
+		"-parallel":         complete.PredictNothing,
+		"-timestamp-ui":     complete.PredictNothing,
+		"-var":              complete.PredictNothing,
+		"-var-file":         complete.PredictNothing,
+	}
 }

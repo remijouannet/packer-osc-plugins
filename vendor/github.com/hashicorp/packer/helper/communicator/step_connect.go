@@ -1,12 +1,13 @@
 package communicator
 
 import (
+	"context"
 	"fmt"
 	"log"
 
 	"github.com/hashicorp/packer/communicator/none"
+	"github.com/hashicorp/packer/helper/multistep"
 	"github.com/hashicorp/packer/packer"
-	"github.com/mitchellh/multistep"
 	gossh "golang.org/x/crypto/ssh"
 )
 
@@ -43,7 +44,9 @@ type StepConnect struct {
 	substep multistep.Step
 }
 
-func (s *StepConnect) Run(state multistep.StateBag) multistep.StepAction {
+func (s *StepConnect) Run(ctx context.Context, state multistep.StateBag) multistep.StepAction {
+	ui := state.Get("ui").(packer.Ui)
+
 	typeMap := map[string]multistep.Step{
 		"none": nil,
 		"ssh": &StepConnectSSH{
@@ -70,21 +73,28 @@ func (s *StepConnect) Run(state multistep.StateBag) multistep.StepAction {
 	}
 
 	if step == nil {
-		comm, err := none.New("none")
-		if err != nil {
+		if comm, err := none.New("none"); err != nil {
 			err := fmt.Errorf("Failed to set communicator 'none': %s", err)
 			state.Put("error", err)
-			ui := state.Get("ui").(packer.Ui)
 			ui.Error(err.Error())
 			return multistep.ActionHalt
+
+		} else {
+			state.Put("communicator", comm)
+			log.Printf("[INFO] communicator disabled, will not connect")
 		}
-		state.Put("communicator", comm)
-		log.Printf("[INFO] communicator disabled, will not connect")
 		return multistep.ActionContinue
 	}
 
+	if host, err := s.Host(state); err == nil {
+		ui.Say(fmt.Sprintf("Using %s communicator to connect: %s", s.Config.Type, host))
+
+	} else {
+		log.Printf("[DEBUG] Unable to get address during connection step: %s", err)
+	}
+
 	s.substep = step
-	return s.substep.Run(state)
+	return s.substep.Run(ctx, state)
 }
 
 func (s *StepConnect) Cleanup(state multistep.StateBag) {

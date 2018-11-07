@@ -1,15 +1,16 @@
 package qemu
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"path/filepath"
 	"strconv"
 	"strings"
 
+	"github.com/hashicorp/packer/helper/multistep"
 	"github.com/hashicorp/packer/packer"
 	"github.com/hashicorp/packer/template/interpolate"
-	"github.com/mitchellh/multistep"
 )
 
 // stepRun runs the virtual machine
@@ -27,7 +28,7 @@ type qemuArgsTemplateData struct {
 	SSHHostPort uint
 }
 
-func (s *stepRun) Run(state multistep.StateBag) multistep.StepAction {
+func (s *stepRun) Run(_ context.Context, state multistep.StateBag) multistep.StepAction {
 	driver := state.Get("driver").(Driver)
 	ui := state.Get("ui").(packer.Ui)
 
@@ -96,9 +97,9 @@ func getCommandArgs(bootDrive string, state multistep.StateBag) ([]string, error
 	if qemuMajor >= 2 {
 		if config.DiskInterface == "virtio-scsi" {
 			deviceArgs = append(deviceArgs, "virtio-scsi-pci,id=scsi0", "scsi-hd,bus=scsi0.0,drive=drive0")
-			driveArgs = append(driveArgs, fmt.Sprintf("if=none,file=%s,id=drive0,cache=%s,discard=%s,format=%s", imgPath, config.DiskCache, config.DiskDiscard, config.Format))
+			driveArgs = append(driveArgs, fmt.Sprintf("if=none,file=%s,id=drive0,cache=%s,discard=%s,format=%s,detect-zeroes=%s", imgPath, config.DiskCache, config.DiskDiscard, config.Format, config.DetectZeroes))
 		} else {
-			driveArgs = append(driveArgs, fmt.Sprintf("file=%s,if=%s,cache=%s,discard=%s,format=%s", imgPath, config.DiskInterface, config.DiskCache, config.DiskDiscard, config.Format))
+			driveArgs = append(driveArgs, fmt.Sprintf("file=%s,if=%s,cache=%s,discard=%s,format=%s,detect-zeroes=%s", imgPath, config.DiskInterface, config.DiskCache, config.DiskDiscard, config.Format, config.DetectZeroes))
 		}
 	} else {
 		driveArgs = append(driveArgs, fmt.Sprintf("file=%s,if=%s,cache=%s,format=%s", imgPath, config.DiskInterface, config.DiskCache, config.Format))
@@ -213,6 +214,13 @@ func getCommandArgs(bootDrive string, state multistep.StateBag) ([]string, error
 				arg = defaultArgs[key].([]string)
 			}
 			inArgs[key] = arg
+		}
+	}
+
+	// Check if we are missing the netDevice #6804
+	if x, ok := inArgs["-device"]; ok {
+		if !strings.Contains(strings.Join(x, ""), config.NetDevice) {
+			inArgs["-device"] = append(inArgs["-device"], fmt.Sprintf("%s,netdev=user.0", config.NetDevice))
 		}
 	}
 

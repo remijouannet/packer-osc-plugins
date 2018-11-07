@@ -11,13 +11,13 @@ import (
 	"github.com/hashicorp/packer/common"
 	"github.com/hashicorp/packer/helper/communicator"
 	"github.com/hashicorp/packer/helper/config"
+	"github.com/hashicorp/packer/helper/multistep"
 	"github.com/hashicorp/packer/packer"
 	"github.com/hashicorp/packer/template/interpolate"
-	"github.com/mitchellh/multistep"
 	awscommon "github.com/remijouannet/packer-osc-plugins/builder/osc/common"
 )
 
-const BuilderId = "mitchellh.amazon.ebssurrogate"
+const BuilderId = "hashicorp/packer/helper.amazon.ebssurrogate"
 
 type Config struct {
 	common.PackerConfig    `mapstructure:",squash"`
@@ -88,7 +88,7 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, error) {
 		return nil, errs
 	}
 
-	log.Println(common.ScrubConfig(b.config, b.config.AccessKey, b.config.SecretKey))
+	packer.LogSecretFilter.Set(b.config.AccessKey, b.config.SecretKey, b.config.Token)
 	return nil, nil
 }
 
@@ -128,42 +128,42 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 
 	if isSpotInstance {
 		instanceStep = &awscommon.StepRunSpotInstance{
-			Debug:                    b.config.PackerDebug,
-			ExpectedRootDevice:       "ebs",
-			SpotPrice:                b.config.SpotPrice,
-			SpotPriceProduct:         b.config.SpotPriceAutoProduct,
-			InstanceType:             b.config.InstanceType,
-			UserData:                 b.config.UserData,
-			UserDataFile:             b.config.UserDataFile,
-			SourceAMI:                b.config.SourceAmi,
-			IamInstanceProfile:       b.config.IamInstanceProfile,
-			SubnetId:                 b.config.SubnetId,
-			AssociatePublicIpAddress: b.config.AssociatePublicIpAddress,
-			EbsOptimized:             b.config.EbsOptimized,
-			AvailabilityZone:         b.config.AvailabilityZone,
-			BlockDevices:             b.config.BlockDevices,
-			Tags:                     b.config.RunTags,
-			VolumeTags:               b.config.VolumeRunTags,
-			Ctx:                      b.config.ctx,
+			Debug:                             b.config.PackerDebug,
+			ExpectedRootDevice:                "ebs",
+			SpotPrice:                         b.config.SpotPrice,
+			SpotPriceProduct:                  b.config.SpotPriceAutoProduct,
+			InstanceType:                      b.config.InstanceType,
+			UserData:                          b.config.UserData,
+			UserDataFile:                      b.config.UserDataFile,
+			SourceAMI:                         b.config.SourceAmi,
+			IamInstanceProfile:                b.config.IamInstanceProfile,
+			SubnetId:                          b.config.SubnetId,
+			AssociatePublicIpAddress:          b.config.AssociatePublicIpAddress,
+			EbsOptimized:                      b.config.EbsOptimized,
+			AvailabilityZone:                  b.config.AvailabilityZone,
+			BlockDevices:                      b.config.BlockDevices,
+			Tags:                              b.config.RunTags,
+			VolumeTags:                        b.config.VolumeRunTags,
+			Ctx:                               b.config.ctx,
 			InstanceInitiatedShutdownBehavior: b.config.InstanceInitiatedShutdownBehavior,
 		}
 	} else {
 		instanceStep = &awscommon.StepRunSourceInstance{
-			Debug:                    b.config.PackerDebug,
-			ExpectedRootDevice:       "ebs",
-			InstanceType:             b.config.InstanceType,
-			UserData:                 b.config.UserData,
-			UserDataFile:             b.config.UserDataFile,
-			SourceAMI:                b.config.SourceAmi,
-			IamInstanceProfile:       b.config.IamInstanceProfile,
-			SubnetId:                 b.config.SubnetId,
-			AssociatePublicIpAddress: b.config.AssociatePublicIpAddress,
-			EbsOptimized:             b.config.EbsOptimized,
-			AvailabilityZone:         b.config.AvailabilityZone,
-			BlockDevices:             b.config.BlockDevices,
-			Tags:                     b.config.RunTags,
-			VolumeTags:               b.config.VolumeRunTags,
-			Ctx:                      b.config.ctx,
+			Debug:                             b.config.PackerDebug,
+			ExpectedRootDevice:                "ebs",
+			InstanceType:                      b.config.InstanceType,
+			UserData:                          b.config.UserData,
+			UserDataFile:                      b.config.UserDataFile,
+			SourceAMI:                         b.config.SourceAmi,
+			IamInstanceProfile:                b.config.IamInstanceProfile,
+			SubnetId:                          b.config.SubnetId,
+			AssociatePublicIpAddress:          b.config.AssociatePublicIpAddress,
+			EbsOptimized:                      b.config.EbsOptimized,
+			AvailabilityZone:                  b.config.AvailabilityZone,
+			BlockDevices:                      b.config.BlockDevices,
+			Tags:                              b.config.RunTags,
+			VolumeTags:                        b.config.VolumeRunTags,
+			Ctx:                               b.config.ctx,
 			InstanceInitiatedShutdownBehavior: b.config.InstanceInitiatedShutdownBehavior,
 		}
 	}
@@ -181,17 +181,14 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 			AmiFilters:               b.config.SourceAmiFilter,
 		},
 		&awscommon.StepKeyPair{
-			Debug:                b.config.PackerDebug,
-			SSHAgentAuth:         b.config.Comm.SSHAgentAuth,
-			DebugKeyPath:         fmt.Sprintf("ec2_%s.pem", b.config.PackerBuildName),
-			KeyPairName:          b.config.SSHKeyPairName,
-			TemporaryKeyPairName: b.config.TemporaryKeyPairName,
-			PrivateKeyFile:       b.config.RunConfig.Comm.SSHPrivateKey,
+			Debug:        b.config.PackerDebug,
+			Comm:         &b.config.RunConfig.Comm,
+			DebugKeyPath: fmt.Sprintf("ec2_%s.pem", b.config.PackerBuildName),
 		},
 		&awscommon.StepSecurityGroup{
-			SecurityGroupIds: b.config.SecurityGroupIds,
-			CommConfig:       &b.config.RunConfig.Comm,
-			VpcId:            b.config.VpcId,
+			SecurityGroupIds:      b.config.SecurityGroupIds,
+			CommConfig:            &b.config.RunConfig.Comm,
+			VpcId:                 b.config.VpcId,
 			TemporarySGSourceCidr: b.config.TemporarySGSourceCidr,
 		},
 		instanceStep,
@@ -204,11 +201,8 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 			Config: &b.config.RunConfig.Comm,
 			Host: awscommon.SSHHost(
 				ec2conn,
-				b.config.SSHPrivateIp),
-			SSHConfig: awscommon.SSHConfig(
-				b.config.RunConfig.Comm.SSHAgentAuth,
-				b.config.RunConfig.Comm.SSHUsername,
-				b.config.RunConfig.Comm.SSHPassword),
+				b.config.Comm.SSHInterface),
+			SSHConfig: b.config.RunConfig.Comm.SSHConfigFunc(),
 		},
 		&common.StepProvision{},
 		&awscommon.StepStopEBSBackedInstance{

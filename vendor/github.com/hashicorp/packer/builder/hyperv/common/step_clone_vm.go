@@ -1,13 +1,14 @@
 package common
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"path/filepath"
 	"strings"
 
+	"github.com/hashicorp/packer/helper/multistep"
 	"github.com/hashicorp/packer/packer"
-	"github.com/mitchellh/multistep"
 )
 
 // This step clones an existing virtual machine.
@@ -15,7 +16,7 @@ import (
 // Produces:
 //   VMName string - The name of the VM
 type StepCloneVM struct {
-	CloneFromVMXCPath              string
+	CloneFromVMCXPath              string
 	CloneFromVMName                string
 	CloneFromSnapshotName          string
 	CloneAllSnapshots              bool
@@ -26,15 +27,17 @@ type StepCloneVM struct {
 	EnableMacSpoofing              bool
 	EnableDynamicMemory            bool
 	EnableSecureBoot               bool
+	SecureBootTemplate             string
 	EnableVirtualizationExtensions bool
+	MacAddress                     string
 }
 
-func (s *StepCloneVM) Run(state multistep.StateBag) multistep.StepAction {
+func (s *StepCloneVM) Run(_ context.Context, state multistep.StateBag) multistep.StepAction {
 	driver := state.Get("driver").(Driver)
 	ui := state.Get("ui").(packer.Ui)
 	ui.Say("Cloning virtual machine...")
 
-	path := state.Get("packerTempDir").(string)
+	path := state.Get("build_dir").(string)
 
 	// Determine if we even have an existing virtual harddrive to attach
 	harddrivePath := ""
@@ -52,7 +55,8 @@ func (s *StepCloneVM) Run(state multistep.StateBag) multistep.StepAction {
 	// convert the MB to bytes
 	ramSize := int64(s.RamSize * 1024 * 1024)
 
-	err := driver.CloneVirtualMachine(s.CloneFromVMXCPath, s.CloneFromVMName, s.CloneFromSnapshotName, s.CloneAllSnapshots, s.VMName, path, harddrivePath, ramSize, s.SwitchName)
+	err := driver.CloneVirtualMachine(s.CloneFromVMCXPath, s.CloneFromVMName, s.CloneFromSnapshotName,
+		s.CloneAllSnapshots, s.VMName, path, harddrivePath, ramSize, s.SwitchName)
 	if err != nil {
 		err := fmt.Errorf("Error cloning virtual machine: %s", err)
 		state.Put("error", err)
@@ -97,7 +101,8 @@ func (s *StepCloneVM) Run(state multistep.StateBag) multistep.StepAction {
 	}
 
 	if generation == 2 {
-		err = driver.SetVirtualMachineSecureBoot(s.VMName, s.EnableSecureBoot)
+
+		err = driver.SetVirtualMachineSecureBoot(s.VMName, s.EnableSecureBoot, s.SecureBootTemplate)
 		if err != nil {
 			err := fmt.Errorf("Error setting secure boot: %s", err)
 			state.Put("error", err)
@@ -111,6 +116,16 @@ func (s *StepCloneVM) Run(state multistep.StateBag) multistep.StepAction {
 		err = driver.SetVirtualMachineVirtualizationExtensions(s.VMName, s.EnableVirtualizationExtensions)
 		if err != nil {
 			err := fmt.Errorf("Error creating setting virtual machine virtualization extensions: %s", err)
+			state.Put("error", err)
+			ui.Error(err.Error())
+			return multistep.ActionHalt
+		}
+	}
+
+	if s.MacAddress != "" {
+		err = driver.SetVmNetworkAdapterMacAddress(s.VMName, s.MacAddress)
+		if err != nil {
+			err := fmt.Errorf("Error setting MAC address: %s", err)
 			state.Put("error", err)
 			ui.Error(err.Error())
 			return multistep.ActionHalt

@@ -1,20 +1,21 @@
 package ecs
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/denverdino/aliyungo/common"
 	"github.com/denverdino/aliyungo/ecs"
+	"github.com/hashicorp/packer/helper/multistep"
 	"github.com/hashicorp/packer/packer"
-	"github.com/mitchellh/multistep"
 )
 
 type stepCreateAlicloudImage struct {
 	image *ecs.ImageType
 }
 
-func (s *stepCreateAlicloudImage) Run(state multistep.StateBag) multistep.StepAction {
-	config := state.Get("config").(Config)
+func (s *stepCreateAlicloudImage) Run(_ context.Context, state multistep.StateBag) multistep.StepAction {
+	config := state.Get("config").(*Config)
 	client := state.Get("client").(*ecs.Client)
 	ui := state.Get("ui").(packer.Ui)
 
@@ -84,7 +85,7 @@ func (s *stepCreateAlicloudImage) Cleanup(state multistep.StateBag) {
 
 	client := state.Get("client").(*ecs.Client)
 	ui := state.Get("ui").(packer.Ui)
-	config := state.Get("config").(Config)
+	config := state.Get("config").(*Config)
 
 	ui.Say("Deleting the image because of cancellation or error...")
 	if err := client.DeleteImage(common.Region(config.AlicloudRegion), s.image.ImageId); err != nil {

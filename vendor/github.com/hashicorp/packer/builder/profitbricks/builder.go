@@ -2,11 +2,12 @@ package profitbricks
 
 import (
 	"fmt"
+	"log"
+
 	"github.com/hashicorp/packer/common"
 	"github.com/hashicorp/packer/helper/communicator"
+	"github.com/hashicorp/packer/helper/multistep"
 	"github.com/hashicorp/packer/packer"
-	"github.com/mitchellh/multistep"
-	"log"
 )
 
 const BuilderId = "packer.profitbricks"
@@ -41,9 +42,12 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 		&communicator.StepConnect{
 			Config:    &b.config.Comm,
 			Host:      commHost,
-			SSHConfig: sshConfig,
+			SSHConfig: b.config.Comm.SSHConfigFunc(),
 		},
 		&common.StepProvision{},
+		&common.StepCleanupTempKeys{
+			Comm: &b.config.Comm,
+		},
 		new(stepTakeSnapshot),
 	}
 

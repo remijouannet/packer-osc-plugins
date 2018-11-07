@@ -1,14 +1,15 @@
 package chroot
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/hashicorp/packer/helper/multistep"
 	"github.com/hashicorp/packer/packer"
-	"github.com/mitchellh/multistep"
 	awscommon "github.com/remijouannet/packer-osc-plugins/builder/osc/common"
 )
 
@@ -23,7 +24,7 @@ type StepAttachVolume struct {
 	volumeId string
 }
 
-func (s *StepAttachVolume) Run(state multistep.StateBag) multistep.StepAction {
+func (s *StepAttachVolume) Run(_ context.Context, state multistep.StateBag) multistep.StepAction {
 	ec2conn := state.Get("ec2").(*ec2.EC2)
 	device := state.Get("device").(string)
 	instance := state.Get("instance").(*ec2.Instance)

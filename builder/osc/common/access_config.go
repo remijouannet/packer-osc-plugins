@@ -16,15 +16,15 @@ import (
 
 // AccessConfig is for common configuration related to AWS access
 type AccessConfig struct {
-	AccessKey         string            `mapstructure:"access_key"`
-	Endpoints         map[string]string `mapstructure:"endpoints"`
-	MFACode           string            `mapstructure:"mfa_code"`
-	ProfileName       string            `mapstructure:"profile"`
-	RawRegion         string            `mapstructure:"region"`
-	SecretKey         string            `mapstructure:"secret_key"`
-	SkipValidation    bool              `mapstructure:"skip_region_validation"`
-	Token             string            `mapstructure:"token"`
-	session           *session.Session
+	AccessKey      string            `mapstructure:"access_key"`
+	Endpoints      map[string]string `mapstructure:"endpoints"`
+	MFACode        string            `mapstructure:"mfa_code"`
+	ProfileName    string            `mapstructure:"profile"`
+	RawRegion      string            `mapstructure:"region"`
+	SecretKey      string            `mapstructure:"secret_key"`
+	SkipValidation bool              `mapstructure:"skip_region_validation"`
+	Token          string            `mapstructure:"token"`
+	session        *session.Session
 }
 
 // Config returns a valid aws.Config object for access to AWS services, or
@@ -40,9 +40,9 @@ func (c *AccessConfig) Session() (*session.Session, error) {
 		if err := os.Setenv("AWS_PROFILE", c.ProfileName); err != nil {
 			return nil, fmt.Errorf("Set env error: %s", err)
 		}
-        if c.RawRegion != "" {
-            config = config.WithRegion(c.RawRegion)
-        }
+		if c.RawRegion != "" {
+			config = config.WithRegion(c.RawRegion)
+		}
 	} else if c.RawRegion != "" {
 		config = config.WithRegion(c.RawRegion)
 	} else if region := c.metadataRegion(); region != "" {

@@ -8,8 +8,8 @@ import (
 	vboxcommon "github.com/hashicorp/packer/builder/virtualbox/common"
 	"github.com/hashicorp/packer/common"
 	"github.com/hashicorp/packer/helper/communicator"
+	"github.com/hashicorp/packer/helper/multistep"
 	"github.com/hashicorp/packer/packer"
-	"github.com/mitchellh/multistep"
 )
 
 // Builder implements packer.Builder and builds the actual VirtualBox
@@ -103,18 +103,19 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 			Ctx:      b.config.ctx,
 		},
 		&vboxcommon.StepRun{
-			BootWait: b.config.BootWait,
 			Headless: b.config.Headless,
 		},
 		&vboxcommon.StepTypeBootCommand{
-			BootCommand: b.config.BootCommand,
-			VMName:      b.config.VMName,
-			Ctx:         b.config.ctx,
+			BootWait:      b.config.BootWait,
+			BootCommand:   b.config.FlatBootCommand(),
+			VMName:        b.config.VMName,
+			Ctx:           b.config.ctx,
+			GroupInterval: b.config.BootConfig.BootGroupInterval,
 		},
 		&communicator.StepConnect{
 			Config:    &b.config.SSHConfig.Comm,
 			Host:      vboxcommon.CommHost(b.config.SSHConfig.Comm.SSHHost),
-			SSHConfig: vboxcommon.SSHConfigFunc(b.config.SSHConfig),
+			SSHConfig: b.config.SSHConfig.Comm.SSHConfigFunc(),
 			SSHPort:   vboxcommon.SSHPort,
 			WinRMPort: vboxcommon.SSHPort,
 		},
@@ -127,6 +128,9 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 			Ctx:                b.config.ctx,
 		},
 		new(common.StepProvision),
+		&common.StepCleanupTempKeys{
+			Comm: &b.config.SSHConfig.Comm,
+		},
 		&vboxcommon.StepShutdown{
 			Command: b.config.ShutdownCommand,
 			Timeout: b.config.ShutdownTimeout,

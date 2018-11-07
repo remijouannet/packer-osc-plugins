@@ -12,9 +12,9 @@ import (
 
 	"github.com/hashicorp/packer/common"
 	"github.com/hashicorp/packer/helper/config"
+	"github.com/hashicorp/packer/helper/multistep"
 	"github.com/hashicorp/packer/packer"
 	"github.com/hashicorp/packer/template/interpolate"
-	"github.com/mitchellh/multistep"
 )
 
 const VAGRANT_CLOUD_URL = "https://vagrantcloud.com/api/v1"
@@ -94,6 +94,13 @@ func (p *PostProcessor) Configure(raws ...interface{}) error {
 		}
 	}
 
+	// create the HTTP client
+	p.client, err = VagrantCloudClient{}.New(p.config.VagrantCloudUrl, p.config.AccessToken)
+	if err != nil {
+		errs = packer.MultiErrorAppend(
+			errs, fmt.Errorf("Failed to verify authentication token: %v", err))
+	}
+
 	if len(errs.Errors) > 0 {
 		return errs
 	}
@@ -117,9 +124,6 @@ func (p *PostProcessor) PostProcess(ui packer.Ui, artifact packer.Artifact) (pac
 	if p.warnAtlasToken {
 		ui.Message("Warning: Using Vagrant Cloud token found in ATLAS_TOKEN. Please make sure it is correct, or set VAGRANT_CLOUD_TOKEN")
 	}
-
-	// create the HTTP client
-	p.client = VagrantCloudClient{}.New(p.config.VagrantCloudUrl, p.config.AccessToken)
 
 	// The name of the provider for vagrant cloud, and vagrant
 	providerName := providerFromBuilderName(artifact.Id())
@@ -189,6 +193,8 @@ func providerFromBuilderName(name string) string {
 	switch name {
 	case "aws":
 		return "aws"
+	case "scaleway":
+		return "scaleway"
 	case "digitalocean":
 		return "digitalocean"
 	case "virtualbox":

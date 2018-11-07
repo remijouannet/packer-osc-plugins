@@ -60,7 +60,7 @@ type Config struct {
 	Architecture                    string            `mapstructure:"image_architecture"`
 	Size                            string            `mapstructure:"image_system_size"`
 	Format                          string            `mapstructure:"format"`
-	AlicloudImageForceDetele        bool              `mapstructure:"image_force_delete"`
+	AlicloudImageForceDelete        bool              `mapstructure:"image_force_delete"`
 
 	ctx interpolate.Context
 }
@@ -113,7 +113,8 @@ func (p *PostProcessor) Configure(raws ...interface{}) error {
 		return errs
 	}
 
-	log.Println(common.ScrubConfig(p.config, p.config.AlicloudAccessKey, p.config.AlicloudSecretKey))
+	packer.LogSecretFilter.Set(p.config.AlicloudAccessKey, p.config.AlicloudSecretKey)
+	log.Println(p.config)
 	return nil
 }
 
@@ -160,7 +161,7 @@ func (p *PostProcessor) PostProcess(ui packer.Ui, artifact packer.Artifact) (pac
 			getEndPonit(p.config.OSSBucket), p.config.OSSKey, err)
 	}
 
-	if len(images) > 0 && !p.config.AlicloudImageForceDetele {
+	if len(images) > 0 && !p.config.AlicloudImageForceDelete {
 		return nil, false, fmt.Errorf("Duplicated image exists, please delete the existing images " +
 			"or set the 'image_force_delete' value as true")
 	}
@@ -185,7 +186,7 @@ func (p *PostProcessor) PostProcess(ui packer.Ui, artifact packer.Artifact) (pac
 	if err != nil {
 		return nil, false, fmt.Errorf("Failed to upload image %s: %s", source, err)
 	}
-	if len(images) > 0 && p.config.AlicloudImageForceDetele {
+	if len(images) > 0 && p.config.AlicloudImageForceDelete {
 		if err = ecsClient.DeleteImage(packercommon.Region(p.config.AlicloudRegion),
 			images[0].ImageId); err != nil {
 			return nil, false, fmt.Errorf("Delete duplicated image %s failed", images[0].ImageName)
@@ -214,7 +215,7 @@ func (p *PostProcessor) PostProcess(ui packer.Ui, artifact packer.Artifact) (pac
 
 	if err != nil {
 		e, _ := err.(*packercommon.Error)
-		if e.Code == "NoSetRoletoECSServiceAcount" {
+		if e.Code == "NoSetRoletoECSServiceAccount" {
 			ramClient := ram.NewClient(p.config.AlicloudAccessKey, p.config.AlicloudSecretKey)
 			roleResponse, err := ramClient.GetRole(ram.RoleQueryRequest{
 				RoleName: "AliyunECSImageImportDefaultRole",
@@ -282,7 +283,7 @@ func (p *PostProcessor) PostProcess(ui packer.Ui, artifact packer.Artifact) (pac
 				imageId, err = ecsClient.ImportImage(imageImageArgs)
 				if err != nil {
 					e, _ = err.(*packercommon.Error)
-					if e.Code == "NoSetRoletoECSServiceAcount" {
+					if e.Code == "NoSetRoletoECSServiceAccount" {
 						time.Sleep(5 * time.Second)
 						continue
 					} else if e.Code == "ImageIsImporting" ||
