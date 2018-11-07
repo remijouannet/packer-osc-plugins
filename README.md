@@ -4,8 +4,8 @@ Packer Builders for Outscale (unofficial)
 Requirements
 ------------
 
--   [Packer](https://www.packer.io/downloads.html) 1.1.3
--   [Go](https://golang.org/doc/install) 1.9 (to build the provider plugin)
+-   [Packer](https://www.packer.io/downloads.html) 1.3.2
+-   [Go](https://golang.org/doc/install) 1.11 (to build the provider plugin)
 
 Install
 ---------------------
