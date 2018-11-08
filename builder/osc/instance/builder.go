@@ -198,6 +198,7 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 
 	if b.config.SpotPrice == "" || b.config.SpotPrice == "0" {
 		instanceStep = &awscommon.StepRunSourceInstance{
+			Comm:                     &b.config.RunConfig.Comm,
 			Debug:                    b.config.PackerDebug,
 			InstanceType:             b.config.InstanceType,
 			UserData:                 b.config.UserData,

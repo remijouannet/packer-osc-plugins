@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 
+	"github.com/hashicorp/packer/helper/communicator"
 	"github.com/hashicorp/packer/helper/multistep"
 	"github.com/hashicorp/packer/packer"
 	"github.com/hashicorp/packer/template/interpolate"
@@ -17,6 +18,7 @@ import (
 
 type StepRunSourceInstance struct {
 	AssociatePublicIpAddress          bool
+	Comm                              *communicator.Config
 	AvailabilityZone                  string
 	BlockDevices                      BlockDevices
 	Debug                             bool
@@ -36,13 +38,10 @@ type StepRunSourceInstance struct {
 	instanceId string
 }
 
-func (s *StepRunSourceInstance) Run(_ context.Context, state multistep.StateBag) multistep.StepAction {
+func (s *StepRunSourceInstance) Run(ctx context.Context, state multistep.StateBag) multistep.StepAction {
 	ec2conn := state.Get("ec2").(*ec2.EC2)
-	var keyName string
-	if name, ok := state.GetOk("keyPair"); ok {
-		keyName = name.(string)
-	}
-	securityGroupIds := aws.StringSlice(state.Get("securityGroupIds").([]string))
+
+    securityGroupIds := aws.StringSlice(state.Get("securityGroupIds").([]string))
 	ui := state.Get("ui").(packer.Ui)
 
 	userData := s.UserData
@@ -138,9 +137,9 @@ func (s *StepRunSourceInstance) Run(_ context.Context, state multistep.StateBag)
 		runOpts.SetTagSpecifications(tagSpecs)
 	}
 
-	if keyName != "" {
-		runOpts.KeyName = &keyName
-	}
+	if s.Comm.SSHKeyPairName != "" {
+        runOpts.KeyName = &s.Comm.SSHKeyPairName
+    }
 
 	if s.SubnetId != "" && s.AssociatePublicIpAddress {
 		runOpts.NetworkInterfaces = []*ec2.InstanceNetworkInterfaceSpecification{

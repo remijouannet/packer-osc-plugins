@@ -127,6 +127,7 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 		}
 	} else {
 		instanceStep = &awscommon.StepRunSourceInstance{
+			Comm:                              &b.config.RunConfig.Comm,
 			Debug:                             b.config.PackerDebug,
 			ExpectedRootDevice:                "ebs",
 			InstanceType:                      b.config.InstanceType,
