@@ -19,7 +19,7 @@ type StepCreateTags struct {
 	Ctx          interpolate.Context
 }
 
-func (s *StepCreateTags) Run(_ context.Context, state multistep.StateBag) multistep.StepAction {
+func (s *StepCreateTags) Run(ctx context.Context, state multistep.StateBag) multistep.StepAction {
 	ec2conn := state.Get("ec2").(*ec2.EC2)
 	ui := state.Get("ui").(packer.Ui)
 	amis := state.Get("amis").(map[string]string)

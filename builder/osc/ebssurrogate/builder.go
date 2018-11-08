@@ -99,6 +99,13 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 	}
 	ec2conn := ec2.New(session)
 
+    // Setup the state bag and initial state for the steps
+	state := new(multistep.BasicStateBag)
+	state.Put("config", &b.config)
+	state.Put("ec2", ec2conn)
+	state.Put("hook", hook)
+	state.Put("ui", ui)
+
 	// If the subnet is specified but not the VpcId or AZ, try to determine them automatically
 	if b.config.SubnetId != "" && (b.config.AvailabilityZone == "" || b.config.VpcId == "") {
 		log.Printf("[INFO] Finding AZ and VpcId for the given subnet '%s'", b.config.SubnetId)
@@ -115,13 +122,6 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 			log.Printf("[INFO] VpcId found: '%s'", b.config.VpcId)
 		}
 	}
-
-	// Setup the state bag and initial state for the steps
-	state := new(multistep.BasicStateBag)
-	state.Put("config", &b.config)
-	state.Put("ec2", ec2conn)
-	state.Put("hook", hook)
-	state.Put("ui", ui)
 
 	var instanceStep multistep.Step
 	isSpotInstance := b.config.SpotPrice != "" && b.config.SpotPrice != "0"
