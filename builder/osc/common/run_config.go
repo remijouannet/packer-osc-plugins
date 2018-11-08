@@ -53,8 +53,6 @@ type RunConfig struct {
 
 	// Communicator settings
 	Comm           communicator.Config `mapstructure:",squash"`
-	SSHKeyPairName string              `mapstructure:"ssh_keypair_name"`
-	SSHPrivateIp   bool                `mapstructure:"ssh_private_ip"`
 }
 
 func (c *RunConfig) Prepare(ctx *interpolate.Context) []error {
@@ -62,10 +60,10 @@ func (c *RunConfig) Prepare(ctx *interpolate.Context) []error {
 	// ssh_private_key_file, then create a temporary one, but only if the
 	// temporary_key_pair_name has not been provided and we are not using
 	// ssh_password.
-	if c.SSHKeyPairName == "" && c.TemporaryKeyPairName == "" &&
-		len(c.Comm.SSHPrivateKey) == 0 && c.Comm.SSHPassword == "" {
+	if c.Comm.SSHKeyPairName == "" && c.Comm.SSHTemporaryKeyPairName == "" &&
+		c.Comm.SSHPrivateKeyFile == "" && c.Comm.SSHPassword == "" {
 
-		c.TemporaryKeyPairName = fmt.Sprintf("packer_%s", uuid.TimeOrderedUUID())
+		c.Comm.SSHTemporaryKeyPairName = fmt.Sprintf("packer_%s", uuid.TimeOrderedUUID())
 	}
 
 	if c.WindowsPasswordTimeout == 0 {
@@ -78,7 +76,7 @@ func (c *RunConfig) Prepare(ctx *interpolate.Context) []error {
 
 	// Validation
 	errs := c.Comm.Prepare(ctx)
-	if c.SSHKeyPairName != "" {
+	if c.Comm.SSHKeyPairName != "" {
 		if c.Comm.Type == "winrm" && c.Comm.WinRMPassword == "" && len(c.Comm.SSHPrivateKey) == 0 {
 			errs = append(errs, errors.New("A private_key_file must be provided to retrieve the winrm password when using ssh_keypair_name."))
 		} else if len(c.Comm.SSHPrivateKey) == 0 && !c.Comm.SSHAgentAuth {
