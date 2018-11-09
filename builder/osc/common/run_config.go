@@ -52,7 +52,7 @@ type RunConfig struct {
 	InstanceInitiatedShutdownBehavior string            `mapstructure:"shutdown_behavior"`
 
 	// Communicator settings
-	Comm           communicator.Config `mapstructure:",squash"`
+	Comm communicator.Config `mapstructure:",squash"`
 }
 
 func (c *RunConfig) Prepare(ctx *interpolate.Context) []error {

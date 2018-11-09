@@ -99,7 +99,7 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 	}
 	ec2conn := ec2.New(session)
 
-    // Setup the state bag and initial state for the steps
+	// Setup the state bag and initial state for the steps
 	state := new(multistep.BasicStateBag)
 	state.Put("config", &b.config)
 	state.Put("ec2", ec2conn)

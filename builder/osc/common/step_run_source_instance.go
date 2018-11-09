@@ -41,7 +41,7 @@ type StepRunSourceInstance struct {
 func (s *StepRunSourceInstance) Run(ctx context.Context, state multistep.StateBag) multistep.StepAction {
 	ec2conn := state.Get("ec2").(*ec2.EC2)
 
-    securityGroupIds := aws.StringSlice(state.Get("securityGroupIds").([]string))
+	securityGroupIds := aws.StringSlice(state.Get("securityGroupIds").([]string))
 	ui := state.Get("ui").(packer.Ui)
 
 	userData := s.UserData
@@ -138,8 +138,8 @@ func (s *StepRunSourceInstance) Run(ctx context.Context, state multistep.StateBa
 	}
 
 	if s.Comm.SSHKeyPairName != "" {
-        runOpts.KeyName = &s.Comm.SSHKeyPairName
-    }
+		runOpts.KeyName = &s.Comm.SSHKeyPairName
+	}
 
 	if s.SubnetId != "" && s.AssociatePublicIpAddress {
 		runOpts.NetworkInterfaces = []*ec2.InstanceNetworkInterfaceSpecification{
