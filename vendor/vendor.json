@@ -2283,12 +2283,7 @@
 			"path": "github.com/ugorji/go/codec/codecgen",
 			"revision": "646ae4a518c1c3be0739df898118d9bccf993858",
 			"revisionTime": "2015-12-18T19:34:38Z"
-		},
-		{
-			"path": "github.com/ugorji/go/codec^",
-			"revision": "646ae4a518c1c3be0739df898118d9bccf993858",
-			"version": "646ae4a518c1c3be0739df898118d9bccf993858"
-		},
+		},	
 		{
 			"checksumSHA1": "yeqdMHNrpUPwTUF7cKQ8B7SBT1w=",
 			"path": "github.com/ulikunitz/xz",
