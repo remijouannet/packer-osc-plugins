@@ -101,8 +101,6 @@ func (s *StepRunSourceInstance) Run(ctx context.Context, state multistep.StateBa
 		return multistep.ActionHalt
 	}
 
-	ui.Say("run instance 1")
-
 	runOpts := &ec2.RunInstancesInput{
 		ImageId:             &s.SourceAMI,
 		InstanceType:        &s.InstanceType,
@@ -116,7 +114,6 @@ func (s *StepRunSourceInstance) Run(ctx context.Context, state multistep.StateBa
 	}
 
 	var tagSpecs []*ec2.TagSpecification
-	ui.Say("run instance 2")
 
 	if len(ec2Tags) > 0 {
 		runTags := &ec2.TagSpecification{
@@ -126,7 +123,6 @@ func (s *StepRunSourceInstance) Run(ctx context.Context, state multistep.StateBa
 
 		tagSpecs = append(tagSpecs, runTags)
 	}
-	ui.Say("run instance 3")
 
 	if len(volTags) > 0 {
 		runVolTags := &ec2.TagSpecification{
@@ -136,17 +132,14 @@ func (s *StepRunSourceInstance) Run(ctx context.Context, state multistep.StateBa
 
 		tagSpecs = append(tagSpecs, runVolTags)
 	}
-	ui.Say("run instance 4")
 
 	if len(tagSpecs) > 0 {
 		runOpts.SetTagSpecifications(tagSpecs)
 	}
-	ui.Say("run instance 5")
 
 	if s.Comm.SSHKeyPairName != "" {
 		runOpts.KeyName = &s.Comm.SSHKeyPairName
 	}
-	ui.Say("run instance 6")
 
 	if s.SubnetId != "" && s.AssociatePublicIpAddress {
 		runOpts.NetworkInterfaces = []*ec2.InstanceNetworkInterfaceSpecification{
@@ -162,12 +155,10 @@ func (s *StepRunSourceInstance) Run(ctx context.Context, state multistep.StateBa
 		runOpts.SubnetId = &s.SubnetId
 		runOpts.SecurityGroupIds = securityGroupIds
 	}
-	ui.Say("run instance 7")
 
 	if s.ExpectedRootDevice == "ebs" {
 		runOpts.InstanceInitiatedShutdownBehavior = &s.InstanceInitiatedShutdownBehavior
 	}
-	ui.Say("run instance 8")
 
 	runResp, err := ec2conn.RunInstances(runOpts)
 	if err != nil {
@@ -180,7 +171,6 @@ func (s *StepRunSourceInstance) Run(ctx context.Context, state multistep.StateBa
 
 	// Set the instance ID so that the cleanup works properly
 	s.instanceId = instanceId
-	ui.Say("run instance 9")
 
 	ui.Message(fmt.Sprintf("Instance ID: %s", instanceId))
 	ui.Say(fmt.Sprintf("Waiting for instance (%v) to become ready...", instanceId))
