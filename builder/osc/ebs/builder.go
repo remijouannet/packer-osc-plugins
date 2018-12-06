@@ -249,19 +249,18 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 		return nil, rawErr.(error)
 	}
 
-	// If there are no AMIs, then just return
-	if _, ok := state.GetOk("amis"); !ok {
-		return nil, nil
+	if amis, ok := state.GetOk("amis"); ok {
+		// Build the artifact and return it
+		artifact := &awscommon.Artifact{
+			Amis:           amis.(map[string]string),
+			BuilderIdValue: BuilderId,
+			Conn:           ec2conn,
+		}
+
+		return artifact, nil
 	}
 
-	// Build the artifact and return it
-	artifact := &awscommon.Artifact{
-		Amis:           state.Get("amis").(map[string]string),
-		BuilderIdValue: BuilderId,
-		Conn:           ec2conn,
-	}
-
-	return artifact, nil
+	return nil, nil
 }
 
 func (b *Builder) Cancel() {
